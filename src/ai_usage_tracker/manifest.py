@@ -10,6 +10,7 @@ ALLOWED_PERMISSIONS = {
     "local_metadata",
     "local_process",
     "local_payload",
+    "delegated_provider_network",
     "provider_network",
     "credential_reference",
     "private_state",

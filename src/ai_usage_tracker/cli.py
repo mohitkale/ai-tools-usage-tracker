@@ -9,7 +9,9 @@ from .discovery import discover_all
 from .fixtures import all_snapshots
 from .manifest import load_manifest
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
+from .providers.codex import CodexProbeError, read_rate_limits, resolve_codex_executable
 from .security import redact
+from .verification import verify_ui_readiness
 
 
 def _print_json(value: Any, pretty: bool) -> None:
@@ -37,8 +39,25 @@ def _parser() -> argparse.ArgumentParser:
         help="emit synthetic UI-ready quota data without filesystem or network access",
     )
     subparsers.add_parser(
+        "verify-fixtures",
+        help="check whether fixture snapshots satisfy the future UI contract",
+    )
+    subparsers.add_parser(
         "claude-status",
         help="parse official Claude status-line JSON from stdin",
+    )
+    codex_live = subparsers.add_parser(
+        "codex-live",
+        help="read rate limits through the official local Codex app-server",
+    )
+    codex_live.add_argument(
+        "--allow-official-process",
+        action="store_true",
+        help="confirm that Codex may use its own authentication and provider connection",
+    )
+    codex_live.add_argument(
+        "--executable",
+        help="explicit Codex executable path; otherwise resolve codex from PATH",
     )
     subparsers.add_parser(
         "permissions",
@@ -66,8 +85,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "fixture":
             snapshots = [snapshot.to_dict() for snapshot in all_snapshots()]
             _print_json({"schema_version": 1, "snapshots": snapshots}, args.pretty)
+        elif args.command == "verify-fixtures":
+            verification = verify_ui_readiness(all_snapshots())
+            _print_json(verification, args.pretty)
+            if not verification["ui_ready"]:
+                return 1
         elif args.command == "claude-status":
             snapshot = parse_status_payload(_read_bounded_stdin(MAX_STATUS_PAYLOAD_BYTES))
+            _print_json(snapshot.to_dict(), args.pretty)
+        elif args.command == "codex-live":
+            if not args.allow_official_process:
+                raise ValueError(
+                    "codex-live requires --allow-official-process; no process was started"
+                )
+            executable = resolve_codex_executable(args.executable)
+            snapshot = read_rate_limits(executable)
             _print_json(snapshot.to_dict(), args.pretty)
         elif args.command == "permissions":
             _print_json(
@@ -87,7 +119,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.pretty,
             )
         return 0
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (CodexProbeError, OSError, ValueError, json.JSONDecodeError) as exc:
         _print_json(
             {
                 "schema_version": 1,
@@ -98,4 +130,3 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.pretty,
         )
         return 2
-

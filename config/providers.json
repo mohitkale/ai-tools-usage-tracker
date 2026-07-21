@@ -20,7 +20,7 @@
       "display_name": "Codex",
       "stability": "experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "local_process"],
+      "permissions": ["local_metadata", "local_process", "delegated_provider_network"],
       "credential_access": "delegated_to_official_process",
       "network_hosts": [],
       "discovery": {

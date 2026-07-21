@@ -38,6 +38,7 @@ Run the credential-free probes directly from a checkout:
 python3 scripts/usage_probe.py --pretty permissions
 python3 scripts/usage_probe.py --pretty discover
 python3 scripts/usage_probe.py --pretty fixture
+python3 scripts/usage_probe.py --pretty verify-fixtures
 ```
 
 The `fixture` command emits synthetic quota data in the exact schema intended
@@ -50,3 +51,18 @@ claude-status-command | python3 scripts/usage_probe.py --pretty claude-status
 
 Configuring that official status-line command is intentionally left as a
 separate, explicit user action.
+
+Codex can be queried through its official local app-server. This starts the
+Codex binary with analytics disabled; Codex may use its own saved login and
+official provider connection, but the probe never receives the credential:
+
+```bash
+python3 scripts/usage_probe.py --pretty codex-live --allow-official-process
+```
+
+The consent flag is mandatory so discovery alone can never start an
+authenticated process.
+
+Current collector coverage and live-test boundaries are recorded in
+[docs/data-verification.md](docs/data-verification.md). No live usage values are
+committed to the repository.

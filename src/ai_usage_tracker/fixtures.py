@@ -5,6 +5,7 @@ import json
 
 from .model import DataSource, ProviderSnapshot
 from .providers.claude import parse_status_payload
+from .providers.codex import parse_rate_limits_result
 
 
 FIXTURE_TIME = datetime(2026, 7, 22, 0, 0, tzinfo=UTC)
@@ -33,6 +34,33 @@ def claude_snapshot() -> ProviderSnapshot:
     )
 
 
+def codex_snapshot() -> ProviderSnapshot:
+    result = {
+        "rateLimits": {
+            "primary": {
+                "usedPercent": 18,
+                "windowDurationMins": 300,
+                "resetsAt": 1784689200,
+            },
+            "secondary": {
+                "usedPercent": 42,
+                "windowDurationMins": 10080,
+                "resetsAt": 1785110400,
+            },
+            "planType": "CANARY_SECRET_FIXTURE_PLAN",
+        },
+        "rateLimitResetCredits": {
+            "availableCount": 1,
+            "credits": [{"id": "CANARY_SECRET_FIXTURE_CREDIT"}],
+        },
+    }
+    return parse_rate_limits_result(
+        result,
+        source=DataSource.FIXTURE,
+        collected_at=FIXTURE_TIME,
+    )
+
+
 def all_snapshots() -> tuple[ProviderSnapshot, ...]:
-    return (claude_snapshot(),)
+    return (claude_snapshot(), codex_snapshot())
 

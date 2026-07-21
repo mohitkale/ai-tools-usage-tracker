@@ -30,6 +30,8 @@ responses as sensitive.
 
 - `local_metadata`: installation and exact-path existence checks only.
 - `local_process`: direct execution of a reviewed binary with fixed arguments.
+- `delegated_provider_network`: an official local process may use its own
+  authentication and network stack; the tracker never receives its credential.
 - `local_payload`: usage payload received from a supported local hook or stdin.
 - `provider_network`: HTTPS to an adapter's official-host allowlist.
 - `credential_reference`: an exact named credential lookup; never enumeration.
@@ -51,4 +53,3 @@ action. Enabling one provider does not grant permission to another.
 Do not include a real token, credential file, database, prompt, or session in a
 report. Reproduce with a synthetic canary and describe the affected adapter and
 data flow.
-
