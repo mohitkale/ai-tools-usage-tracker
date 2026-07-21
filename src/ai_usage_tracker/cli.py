@@ -12,6 +12,7 @@ from .manifest import load_manifest
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
 from .providers.codex import CodexProbeError, read_rate_limits, resolve_codex_executable
 from .security import redact
+from .security import redact_text
 from .storage import SnapshotStore
 from .verification import verify_ui_readiness
 
@@ -22,6 +23,14 @@ def _print_json(value: Any, pretty: bool) -> None:
         print(json.dumps(safe_value, indent=2, sort_keys=True))
     else:
         print(json.dumps(safe_value, separators=(",", ":"), sort_keys=True))
+
+
+def _safe_error_message(exc: BaseException) -> str:
+    if isinstance(exc, OSError):
+        return "A local filesystem or process operation failed."
+    if isinstance(exc, json.JSONDecodeError):
+        return "A local JSON document was invalid."
+    return redact_text(str(exc))[:500]
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -168,7 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "schema_version": 1,
                 "status": "error",
                 "error_code": "probe_failed",
-                "message": str(exc),
+                "message": _safe_error_message(exc),
             },
             args.pretty,
         )

@@ -68,6 +68,18 @@ class SnapshotStoreTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "snapshot directory"):
                 SnapshotStore(root).load("claude")
 
+    def test_rejects_non_regular_snapshot(self) -> None:
+        if os.name == "nt" or not hasattr(os, "mkfifo"):
+            self.skipTest("FIFO behavior is POSIX-specific")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshots = root / "snapshots"
+            snapshots.mkdir()
+            os.mkfifo(snapshots / "claude.json")
+
+            with self.assertRaisesRegex(ValueError, "regular file"):
+                SnapshotStore(root).load("claude")
+
 
 if __name__ == "__main__":
     unittest.main()

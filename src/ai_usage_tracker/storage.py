@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 import tempfile
 from typing import Any
@@ -116,8 +117,27 @@ class SnapshotStore:
             raise ValueError("refusing to read a symlinked snapshot")
         if not target.exists():
             return None
-        size = target.stat().st_size
-        if size > MAX_SNAPSHOT_BYTES:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        if hasattr(os, "O_NONBLOCK"):
+            flags |= os.O_NONBLOCK
+        try:
+            descriptor = os.open(target, flags)
+        except OSError as exc:
+            if target.is_symlink():
+                raise ValueError("refusing to read a symlinked snapshot") from exc
+            raise
+        with os.fdopen(descriptor, "rb") as snapshot_file:
+            metadata = os.fstat(snapshot_file.fileno())
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError("snapshot must be a regular file")
+            if metadata.st_size > MAX_SNAPSHOT_BYTES:
+                raise ValueError("normalized snapshot exceeds the size limit")
+            raw = snapshot_file.read(MAX_SNAPSHOT_BYTES + 1)
+        if len(raw) > MAX_SNAPSHOT_BYTES:
             raise ValueError("normalized snapshot exceeds the size limit")
-        document = json.loads(target.read_bytes())
+        document = json.loads(raw)
         return _validate_document(document, provider_id)
