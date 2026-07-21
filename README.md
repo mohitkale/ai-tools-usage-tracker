@@ -52,6 +52,20 @@ claude-status-command | python3 scripts/usage_probe.py --pretty claude-status
 Configuring that official status-line command is intentionally left as a
 separate, explicit user action.
 
+For a future UI to consume Claude updates, use the capture command as the
+status-line target:
+
+```bash
+python3 scripts/usage_probe.py claude-capture
+```
+
+It writes only the normalized latest snapshot to the current user's standard
+application-data directory. It never stores the raw stdin payload. Read it with:
+
+```bash
+python3 scripts/usage_probe.py --pretty snapshot --provider claude
+```
+
 Codex can be queried through its official local app-server. This starts the
 Codex binary with analytics disabled; Codex may use its own saved login and
 official provider connection, but the probe never receives the credential:

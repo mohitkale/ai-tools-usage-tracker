@@ -31,6 +31,12 @@ live payload requires the user to explicitly configure a Claude status-line
 command. It reads the payload from stdin and has no credential or network
 permission.
 
+The `claude-capture` command can serve as that status-line target. It writes one
+normalized snapshot atomically with user-only permissions and prints a short
+status-line summary. It does not retain the incoming payload. The project does
+not automatically edit `~/.claude/settings.json` or its platform equivalents.
+
+
 ### Codex
 
 The local probe was exercised against the installed official Codex app-server.
@@ -61,4 +67,3 @@ covered by new fixtures before release.
 
 These gaps do not block validation of the shared UI schema, but their adapters
 must be verified before the UI claims live support for them.
-

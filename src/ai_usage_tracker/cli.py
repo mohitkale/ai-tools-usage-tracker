@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
 from typing import Any, Sequence
 
@@ -11,6 +12,7 @@ from .manifest import load_manifest
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
 from .providers.codex import CodexProbeError, read_rate_limits, resolve_codex_executable
 from .security import redact
+from .storage import SnapshotStore
 from .verification import verify_ui_readiness
 
 
@@ -45,6 +47,23 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "claude-status",
         help="parse official Claude status-line JSON from stdin",
+    )
+    claude_capture = subparsers.add_parser(
+        "claude-capture",
+        help="normalize Claude status-line JSON and store only the latest snapshot",
+    )
+    claude_capture.add_argument(
+        "--data-dir",
+        help="override the app data directory; intended for testing and portable installs",
+    )
+    snapshot = subparsers.add_parser(
+        "snapshot",
+        help="read a previously normalized local snapshot",
+    )
+    snapshot.add_argument("--provider", required=True, choices=("claude", "codex"))
+    snapshot.add_argument(
+        "--data-dir",
+        help="override the app data directory; intended for testing and portable installs",
     )
     codex_live = subparsers.add_parser(
         "codex-live",
@@ -93,6 +112,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "claude-status":
             snapshot = parse_status_payload(_read_bounded_stdin(MAX_STATUS_PAYLOAD_BYTES))
             _print_json(snapshot.to_dict(), args.pretty)
+        elif args.command == "claude-capture":
+            snapshot = parse_status_payload(_read_bounded_stdin(MAX_STATUS_PAYLOAD_BYTES))
+            store = SnapshotStore(Path(args.data_dir) if args.data_dir else None)
+            store.save(snapshot)
+            percentages = [
+                f"{window.label}: {window.used_percent:.0f}%"
+                for window in snapshot.windows
+                if window.used_percent is not None
+            ]
+            print("Claude | " + " | ".join(percentages) if percentages else "Claude usage pending")
+        elif args.command == "snapshot":
+            store = SnapshotStore(Path(args.data_dir) if args.data_dir else None)
+            document = store.load(args.provider)
+            if document is None:
+                _print_json(
+                    {
+                        "schema_version": 1,
+                        "provider_id": args.provider,
+                        "status": "no_data",
+                    },
+                    args.pretty,
+                )
+            else:
+                _print_json(document, args.pretty)
         elif args.command == "codex-live":
             if not args.allow_official_process:
                 raise ValueError(
