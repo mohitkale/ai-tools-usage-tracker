@@ -57,13 +57,37 @@ The adapter:
 The method is experimental in Codex, so schema changes must fail closed and be
 covered by new fixtures before release.
 
+### Cursor
+
+The private, default-disabled adapter was exercised against the installed
+Cursor desktop client and returned an available billing-cycle snapshot with an
+included-usage amount, limit, percentage, window duration, and reset time. Live
+values were observed only in process output and were not written to this
+repository.
+
+The adapter:
+
+- Requires `--allow-private-cursor-session` before reading any credential.
+- Opens only Cursor's `User/globalStorage/state.vscdb` in SQLite read-only and
+  query-only modes.
+- Selects only the exact `cursorAuth/accessToken` key; it does not read the
+  refresh token, profile, conversations, prompts, or source code.
+- Sends an empty protobuf request only to the official `api2.cursor.sh` host
+  and does not follow redirects.
+- Parses only billing-cycle, plan-usage, and spend-limit numeric fields from a
+  size-bounded response.
+- Does not print, persist, log, or include the token or raw response in errors.
+
+This RPC is the interface used by the installed Cursor desktop application, but
+it is undocumented. The adapter therefore remains experimental and disabled by
+default; a Cursor schema or authentication change must fail closed.
+
 ## Pending adapters
 
 - GitHub Copilot requires a separately scoped official API credential and was
   not detected in the current VS Code profile during research.
 - Devin requires an official account/API capability before live verification.
 - Antigravity does not yet have a reviewed scriptable usage interface.
-- Cursor's known approach depends on private state and remains disabled.
 
 These gaps do not block validation of the shared UI schema, but their adapters
 must be verified before the UI claims live support for them.

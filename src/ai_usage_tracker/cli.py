@@ -11,6 +11,7 @@ from .fixtures import all_snapshots
 from .manifest import load_manifest
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
 from .providers.codex import CodexProbeError, read_rate_limits, resolve_codex_executable
+from .providers.cursor import CursorProbeError, read_cursor_usage
 from .security import redact
 from .security import redact_text
 from .storage import SnapshotStore
@@ -87,6 +88,19 @@ def _parser() -> argparse.ArgumentParser:
         "--executable",
         help="explicit Codex executable path; otherwise resolve codex from PATH",
     )
+    cursor_live = subparsers.add_parser(
+        "cursor-live",
+        help="read individual usage through Cursor's private read-only interface",
+    )
+    cursor_live.add_argument(
+        "--allow-private-cursor-session",
+        action="store_true",
+        help="allow one exact Cursor access-token read and one request to api2.cursor.sh",
+    )
+    cursor_live.add_argument(
+        "--database",
+        help="override the Cursor state database path",
+    )
     subparsers.add_parser(
         "permissions",
         help="show the reviewed permission declaration for every provider",
@@ -153,6 +167,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             executable = resolve_codex_executable(args.executable)
             snapshot = read_rate_limits(executable)
             _print_json(snapshot.to_dict(), args.pretty)
+        elif args.command == "cursor-live":
+            if not args.allow_private_cursor_session:
+                raise ValueError(
+                    "cursor-live requires --allow-private-cursor-session; no credential was read"
+                )
+            database = Path(args.database) if args.database else None
+            snapshot = read_cursor_usage(database)
+            _print_json(snapshot.to_dict(), args.pretty)
         elif args.command == "permissions":
             _print_json(
                 {
@@ -171,7 +193,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.pretty,
             )
         return 0
-    except (CodexProbeError, OSError, ValueError, json.JSONDecodeError) as exc:
+    except (
+        CodexProbeError,
+        CursorProbeError,
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as exc:
         _print_json(
             {
                 "schema_version": 1,

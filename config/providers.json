@@ -65,12 +65,12 @@
       "enabled_by_default": false,
       "permissions": ["local_metadata", "private_state", "provider_network"],
       "credential_access": "existing_session_opt_in_only",
-      "network_hosts": ["cursor.com"],
+      "network_hosts": ["api2.cursor.sh"],
       "discovery": {
         "executables": ["cursor"],
         "paths": []
       },
-      "notes": "Private state and undocumented endpoints are prohibited until separately reviewed and explicitly enabled."
+      "notes": "Explicit opt-in reads only cursorAuth/accessToken from Cursor/User/globalStorage/state.vscdb in read-only mode, calls only the official api2.cursor.sh usage RPC, and retains only normalized quota fields."
     },
     {
       "id": "antigravity",

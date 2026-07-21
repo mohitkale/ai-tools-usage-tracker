@@ -11,8 +11,9 @@ before any desktop UI is introduced.
 - Validate the schema with synthetic data and supported local interfaces.
 - Make every filesystem, process, credential, and network permission explicit.
 
-The project does **not** currently read credentials, enumerate an operating
-system keychain, persist secrets, or send telemetry.
+The project does **not** enumerate an operating-system keychain, persist
+secrets, or send telemetry. The experimental Cursor probe reads one exact
+session record only after explicit command-line consent.
 
 ## Security defaults
 
@@ -86,6 +87,19 @@ python3 scripts/usage_probe.py --pretty codex-live \
   --allow-official-process \
   --executable /trusted/path/to/codex
 ```
+
+Cursor individual usage has no public API. An experimental, default-disabled
+probe can read exactly `cursorAuth/accessToken` from Cursor's SQLite state in
+read-only mode and send it only to Cursor's own desktop usage RPC at
+`https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`:
+
+```bash
+python3 scripts/usage_probe.py --pretty cursor-live \
+  --allow-private-cursor-session
+```
+
+The token is not printed, persisted, logged, or included in errors. Because the
+interface is undocumented, it may stop working after a Cursor update.
 
 Current collector coverage and live-test boundaries are recorded in
 [docs/data-verification.md](docs/data-verification.md). No live usage values are
