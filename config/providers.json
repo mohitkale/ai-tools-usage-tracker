@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "providers": [
+    {
+      "id": "claude",
+      "display_name": "Claude Code",
+      "stability": "stable",
+      "enabled_by_default": false,
+      "permissions": ["local_metadata", "local_payload"],
+      "credential_access": "none",
+      "network_hosts": [],
+      "discovery": {
+        "executables": ["claude"],
+        "paths": []
+      },
+      "notes": "Consumes official status-line JSON supplied over stdin; it does not read Claude credentials."
+    },
+    {
+      "id": "codex",
+      "display_name": "Codex",
+      "stability": "experimental",
+      "enabled_by_default": false,
+      "permissions": ["local_metadata", "local_process"],
+      "credential_access": "delegated_to_official_process",
+      "network_hosts": [],
+      "discovery": {
+        "executables": ["codex"],
+        "paths": []
+      },
+      "notes": "Uses the official local Codex app-server over stdio; never reads auth.json."
+    },
+    {
+      "id": "github_copilot",
+      "display_name": "GitHub Copilot",
+      "stability": "planned",
+      "enabled_by_default": false,
+      "permissions": ["local_metadata", "provider_network", "credential_reference"],
+      "credential_access": "dedicated_least_privilege_token",
+      "network_hosts": ["api.github.com"],
+      "discovery": {
+        "executables": ["code"],
+        "paths": []
+      },
+      "notes": "Will use official GitHub APIs and an app-owned scoped token only."
+    },
+    {
+      "id": "devin",
+      "display_name": "Devin",
+      "stability": "planned",
+      "enabled_by_default": false,
+      "permissions": ["local_metadata", "provider_network", "credential_reference"],
+      "credential_access": "dedicated_least_privilege_token",
+      "network_hosts": ["api.devin.ai"],
+      "discovery": {
+        "executables": [],
+        "paths": []
+      },
+      "notes": "Will use an official API only when the account plan exposes usage data."
+    },
+    {
+      "id": "cursor",
+      "display_name": "Cursor",
+      "stability": "private_experimental",
+      "enabled_by_default": false,
+      "permissions": ["local_metadata", "private_state", "provider_network"],
+      "credential_access": "existing_session_opt_in_only",
+      "network_hosts": ["cursor.com"],
+      "discovery": {
+        "executables": ["cursor"],
+        "paths": []
+      },
+      "notes": "Private state and undocumented endpoints are prohibited until separately reviewed and explicitly enabled."
+    },
+    {
+      "id": "antigravity",
+      "display_name": "Antigravity",
+      "stability": "planned",
+      "enabled_by_default": false,
+      "permissions": ["local_metadata"],
+      "credential_access": "none",
+      "network_hosts": [],
+      "discovery": {
+        "executables": ["antigravity"],
+        "paths": []
+      },
+      "notes": "Only a documented usage command or payload will be accepted as a stable source."
+    }
+  ]
+}
+
