@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 
 from .manifest import ProviderManifest
+from .providers.codex import CodexProbeError, resolve_codex_executable
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +34,15 @@ class DiscoveryResult:
 
 def discover_provider(provider: ProviderManifest) -> DiscoveryResult:
     detected_name: str | None = None
+    if provider.id == "codex":
+        try:
+            resolve_codex_executable()
+            detected_name = "codex"
+        except CodexProbeError:
+            pass
     for executable in provider.executables:
+        if detected_name is not None:
+            break
         resolved = shutil.which(executable)
         if resolved:
             # Do not expose or persist the user's installation path.

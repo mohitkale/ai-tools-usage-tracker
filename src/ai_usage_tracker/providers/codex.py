@@ -7,6 +7,7 @@ from pathlib import Path
 from queue import Empty, Queue
 import shutil
 import subprocess
+import sys
 import tempfile
 from threading import Thread
 import time
@@ -224,18 +225,65 @@ def _wait_for_response(
         return result
 
 
+def _automatic_codex_candidates() -> tuple[Path, ...]:
+    candidates: list[Path] = []
+
+    install_dir = os.environ.get("CODEX_INSTALL_DIR")
+    if install_dir:
+        executable_name = "codex.exe" if os.name == "nt" else "codex"
+        candidates.append(Path(install_dir).expanduser() / executable_name)
+
+    home = Path.home()
+    if sys.platform == "darwin":
+        candidates.extend(
+            (
+                Path("/Applications/ChatGPT.app/Contents/Resources/codex"),
+                home / "Applications" / "ChatGPT.app" / "Contents" / "Resources" / "codex",
+                home / ".local" / "bin" / "codex",
+            )
+        )
+    elif os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            candidates.append(
+                Path(local_app_data) / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe"
+            )
+    else:
+        candidates.append(home / ".local" / "bin" / "codex")
+
+    discovered = shutil.which("codex")
+    if discovered:
+        candidates.append(Path(discovered))
+    return tuple(candidates)
+
+
+def _usable_executable(candidate: Path) -> Path | None:
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    if not resolved.is_file():
+        return None
+    if os.name != "nt" and not os.access(resolved, os.X_OK):
+        return None
+    return resolved
+
+
 def resolve_codex_executable(explicit_path: str | None = None) -> Path:
     if explicit_path:
-        candidate = Path(explicit_path).expanduser()
-    else:
-        discovered = shutil.which("codex")
-        if not discovered:
-            raise CodexProbeError("Codex executable was not found")
-        candidate = Path(discovered)
-    resolved = candidate.resolve()
-    if not resolved.is_file():
-        raise CodexProbeError("Codex executable is not a regular file")
-    return resolved
+        resolved = _usable_executable(Path(explicit_path).expanduser())
+        if resolved is None:
+            raise CodexProbeError("The explicit Codex executable is not usable")
+        return resolved
+
+    for candidate in _automatic_codex_candidates():
+        resolved = _usable_executable(candidate)
+        if resolved is not None:
+            return resolved
+    raise CodexProbeError(
+        "Codex executable was not found in PATH or a standard install location; "
+        "pass --executable with the trusted Codex binary path"
+    )
 
 
 def read_rate_limits(
@@ -302,4 +350,3 @@ def read_rate_limits(
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=2)
-

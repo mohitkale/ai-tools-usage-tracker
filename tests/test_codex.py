@@ -3,11 +3,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import json
 import os
+from pathlib import Path
+import stat
+import tempfile
 import unittest
 from unittest.mock import patch
 
 from ai_usage_tracker.model import DataSource, SnapshotStatus
-from ai_usage_tracker.providers.codex import _minimal_environment, parse_rate_limits_result
+from ai_usage_tracker.providers.codex import (
+    CodexProbeError,
+    _minimal_environment,
+    parse_rate_limits_result,
+    resolve_codex_executable,
+)
 
 
 class CodexRateLimitParserTests(unittest.TestCase):
@@ -83,6 +91,33 @@ class CodexRateLimitParserTests(unittest.TestCase):
         self.assertNotIn("CODEX_ACCESS_TOKEN", environment)
         self.assertNotIn("OPENAI_API_KEY", environment)
         self.assertNotIn("CANARY_SECRET", json.dumps(environment))
+
+    def test_resolves_codex_from_configured_install_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            install_dir = Path(directory)
+            executable = install_dir / ("codex.exe" if os.name == "nt" else "codex")
+            executable.write_bytes(b"test executable")
+            if os.name != "nt":
+                executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+            with (
+                patch.dict(os.environ, {"CODEX_INSTALL_DIR": str(install_dir)}, clear=False),
+                patch("ai_usage_tracker.providers.codex.shutil.which", return_value=None),
+            ):
+                resolved = resolve_codex_executable()
+
+            self.assertEqual(resolved, executable.resolve())
+
+    def test_explicit_non_executable_path_fails_without_disclosing_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "private-codex-path"
+            candidate.write_text("not executable", encoding="utf-8")
+            if os.name == "nt":
+                candidate.unlink()
+
+            with self.assertRaises(CodexProbeError) as caught:
+                resolve_codex_executable(str(candidate))
+
+            self.assertNotIn(str(candidate), str(caught.exception))
 
 
 if __name__ == "__main__":

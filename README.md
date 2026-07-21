@@ -77,6 +77,16 @@ python3 scripts/usage_probe.py --pretty codex-live --allow-official-process
 The consent flag is mandatory so discovery alone can never start an
 authenticated process.
 
+The probe checks the standard Codex CLI install directory and the Codex binary
+bundled with ChatGPT, in addition to `PATH`. A non-standard installation can be
+selected explicitly:
+
+```bash
+python3 scripts/usage_probe.py --pretty codex-live \
+  --allow-official-process \
+  --executable /trusted/path/to/codex
+```
+
 Current collector coverage and live-test boundaries are recorded in
 [docs/data-verification.md](docs/data-verification.md). No live usage values are
 committed to the repository.
