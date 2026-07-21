@@ -32,3 +32,21 @@ No UI or packaging dependencies are installed yet. The initial collector is
 intentionally based on the Python standard library so its behavior is easy to
 inspect and test.
 
+Run the credential-free probes directly from a checkout:
+
+```bash
+python3 scripts/usage_probe.py --pretty permissions
+python3 scripts/usage_probe.py --pretty discover
+python3 scripts/usage_probe.py --pretty fixture
+```
+
+The `fixture` command emits synthetic quota data in the exact schema intended
+for the future UI. To parse a real Claude status-line payload without reading a
+credential or making a network request:
+
+```bash
+claude-status-command | python3 scripts/usage_probe.py --pretty claude-status
+```
+
+Configuring that official status-line command is intentionally left as a
+separate, explicit user action.

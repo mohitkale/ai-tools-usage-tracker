@@ -39,6 +39,7 @@
       "network_hosts": ["api.github.com"],
       "discovery": {
         "executables": ["code"],
+        "executable_role": "host",
         "paths": []
       },
       "notes": "Will use official GitHub APIs and an app-owned scoped token only."
@@ -87,4 +88,3 @@
     }
   ]
 }
-
