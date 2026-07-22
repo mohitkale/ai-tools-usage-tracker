@@ -11,8 +11,15 @@ import threading
 from typing import Any, Mapping, Sequence
 
 from .model import ProviderSnapshot
+from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
+from .providers.claude_setup import (
+    ClaudeSetupError,
+    install_claude_status_line,
+    widget_capture_argv,
+)
 from .providers.codex import read_rate_limits, resolve_codex_executable
 from .providers.cursor import read_cursor_usage
+from .providers.github_copilot import read_copilot_usage
 from .storage import SnapshotStore
 from .widget_settings import SUPPORTED_PROVIDERS, WidgetSettings, WidgetSettingsStore
 
@@ -37,7 +44,7 @@ PROVIDER_DESCRIPTIONS = {
     "cursor": "Reads one exact Cursor session record and sends it only to Cursor's usage RPC.",
     "claude": "Reads only the normalized local status snapshot; no credential or network access.",
     "codex": "Starts the official local Codex process; Codex keeps control of its own login.",
-    "github_copilot": "Usage adapter is waiting for a reviewed official individual-account source.",
+    "github_copilot": "Starts the official GitHub CLI and requests only Copilot premium-request totals.",
     "devin": "Usage adapter requires a reviewed account API capability before it can be enabled.",
     "antigravity": "No reviewed scriptable usage interface is available yet.",
 }
@@ -45,7 +52,7 @@ PROVIDER_SUMMARIES = {
     "cursor": "Monthly included usage and billing reset",
     "claude": "5-hour and 7-day limits from the status hook",
     "codex": "Rolling rate-limit windows from the local app",
-    "github_copilot": "Individual Copilot quota tracking",
+    "github_copilot": "Monthly premium-request usage through your signed-in GitHub CLI",
     "devin": "Account usage and allowance tracking",
     "antigravity": "Local AI usage tracking",
 }
@@ -169,6 +176,8 @@ def _format_amount(window: Mapping[str, Any], percent: float | None) -> str:
         return f"{_format_money(used)} used"
     if used is not None and limit is not None:
         return f"{used:g} of {limit:g}"
+    if used is not None:
+        return f"{used:g} used"
     if percent is not None:
         return f"{percent:.0f}% used"
     return "Usage available"
@@ -270,6 +279,8 @@ class ProviderCollector:
                 return display_from_snapshot(read_rate_limits(executable))
             if provider_id == "cursor":
                 return display_from_snapshot(read_cursor_usage())
+            if provider_id == "github_copilot":
+                return display_from_snapshot(read_copilot_usage())
         except Exception:
             # UI errors are intentionally generic. Provider exceptions can contain
             # local paths or unreviewed payload fragments and are never displayed.
@@ -568,6 +579,14 @@ class UsageWidget:
                     self.refresh_all,
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
+            elif display.status == "no_data" and display.provider_id == "claude":
+                self._button(
+                    detail_row,
+                    "Configure",
+                    self.configure_claude,
+                    accent=True,
+                    compact=True,
+                ).pack(side="right", padx=(8, 0))
             return
 
         for index, window in enumerate(display.windows):
@@ -699,6 +718,35 @@ class UsageWidget:
         if self._save_settings(settings, self.root):
             self.refresh_all()
 
+    def configure_claude(self) -> None:
+        approved = self.messagebox.askyesno(
+            "Configure Claude Code?",
+            "Add this app as Claude Code's status-line command?\n\n"
+            "Claude will send its official status JSON to the local app after each "
+            "response. The raw JSON is not retained; only normalized quota percentages "
+            "and reset times are stored. Existing status-line settings will never be "
+            "overwritten.",
+            parent=self.root,
+        )
+        if not approved:
+            return
+        try:
+            install_claude_status_line(widget_capture_argv())
+        except (ClaudeSetupError, OSError, ValueError) as exc:
+            self.messagebox.showerror(
+                "Claude setup not changed",
+                str(exc),
+                parent=self.root,
+            )
+            return
+        self.messagebox.showinfo(
+            "Claude capture enabled",
+            "Claude Code is configured. The card will update after Claude produces its "
+            "next response with rate-limit data.",
+            parent=self.root,
+        )
+        self.refresh_all()
+
     def open_settings(self) -> None:
         dialog = self.tk.Toplevel(self.root)
         dialog.title("AI Usage Settings")
@@ -768,7 +816,7 @@ class UsageWidget:
         ).pack(anchor="w", padx=11, pady=(8, 3))
         self.tk.Label(
             planned,
-            text="GitHub Copilot  ·  Devin  ·  Antigravity",
+            text="Devin  ·  Antigravity",
             bg=self.SURFACE,
             fg=self.MUTED,
             font=("TkDefaultFont", 8),
@@ -871,7 +919,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="render the widget once and exit without enabling providers",
     )
+    parser.add_argument(
+        "--claude-capture",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args(argv)
+    if args.claude_capture:
+        try:
+            payload = sys.stdin.buffer.read(MAX_STATUS_PAYLOAD_BYTES + 1)
+            if len(payload) > MAX_STATUS_PAYLOAD_BYTES:
+                raise ValueError("Claude status payload exceeds the size limit")
+            snapshot = parse_status_payload(payload)
+            SnapshotStore(Path(args.data_dir) if args.data_dir else None).save(snapshot)
+            percentages = [
+                f"{window.label}: {window.used_percent:.0f}%"
+                for window in snapshot.windows
+                if window.used_percent is not None
+            ]
+            print("Claude | " + " | ".join(percentages) if percentages else "Claude usage pending")
+            return 0
+        except (OSError, ValueError):
+            print("Claude usage unavailable")
+            return 2
     try:
         run_widget(
             Path(args.data_dir) if args.data_dir else None,

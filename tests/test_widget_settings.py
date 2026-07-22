@@ -20,7 +20,7 @@ class WidgetSettingsStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = WidgetSettingsStore(Path(directory))
             expected = WidgetSettings(
-                enabled_providers=frozenset({"codex", "cursor"}),
+                enabled_providers=frozenset({"codex", "cursor", "github_copilot"}),
                 refresh_minutes=10,
                 always_on_top=False,
             )

@@ -13,7 +13,9 @@ from .storage import default_data_dir
 
 SETTINGS_FILENAME = "widget-settings.json"
 MAX_SETTINGS_BYTES = 16 * 1024
-SUPPORTED_PROVIDERS = frozenset({"claude", "codex", "cursor"})
+SUPPORTED_PROVIDERS = frozenset(
+    {"claude", "codex", "cursor", "github_copilot"}
+)
 ALLOWED_REFRESH_MINUTES = frozenset({2, 5, 10, 15, 30})
 
 

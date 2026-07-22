@@ -32,17 +32,16 @@
     {
       "id": "github_copilot",
       "display_name": "GitHub Copilot",
-      "stability": "planned",
+      "stability": "experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "provider_network", "credential_reference"],
-      "credential_access": "dedicated_least_privilege_token",
-      "network_hosts": ["api.github.com"],
+      "permissions": ["local_metadata", "local_process", "delegated_provider_network"],
+      "credential_access": "delegated_to_official_process",
+      "network_hosts": [],
       "discovery": {
-        "executables": ["code"],
-        "executable_role": "host",
+        "executables": ["gh"],
         "paths": []
       },
-      "notes": "Will use official GitHub APIs and an app-owned scoped token only."
+      "notes": "Uses the official GitHub CLI to call the personal premium-request billing endpoint; the app never reads or stores gh credentials."
     },
     {
       "id": "devin",

@@ -73,7 +73,7 @@ class WidgetFormattingTests(unittest.TestCase):
                 "antigravity",
             },
         )
-        self.assertEqual(planned_display("github_copilot").status_text, "Planned")
+        self.assertEqual(disabled_display("github_copilot").status_text, "Ready")
 
 
 class WidgetCollectorTests(unittest.TestCase):
