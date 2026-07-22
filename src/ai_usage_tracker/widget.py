@@ -15,6 +15,7 @@ from .providers.antigravity import read_antigravity_usage
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
 from .providers.claude_setup import (
     ClaudeSetupError,
+    claude_status_line_state,
     install_claude_status_line,
     widget_capture_argv,
 )
@@ -52,7 +53,7 @@ PROVIDER_DESCRIPTIONS = {
 }
 PROVIDER_SUMMARIES = {
     "cursor": "Monthly included usage and billing reset",
-    "claude": "5-hour and 7-day limits from the status hook",
+    "claude": "Plan limits on Pro/Max, or live session context on the free tier",
     "codex": "Rolling rate-limit windows from the local app",
     "github_copilot": "Monthly premium-request usage through your signed-in GitHub CLI",
     "devin": "Daily, weekly, and included usage from Devin's local plan cache",
@@ -221,7 +222,7 @@ def display_from_snapshot(snapshot: ProviderSnapshot | Mapping[str, Any]) -> Pro
         )
     if not windows:
         return ProviderDisplay(provider_id, display_name, "no_data", "Waiting for data")
-    status_text = "Live"
+    status_text = "Live API" if provider_id == "cursor" else "Live"
     collected_at = document.get("collected_at")
     if isinstance(collected_at, str):
         try:
@@ -291,6 +292,15 @@ class ProviderCollector:
             if provider_id == "claude":
                 snapshot = self.snapshot_store.load("claude")
                 if snapshot is None:
+                    hook_state = claude_status_line_state(widget_capture_argv())
+                    if hook_state == "installed":
+                        return ProviderDisplay(
+                            "claude", "Claude Code", "no_data", "Waiting for prompt"
+                        )
+                    if hook_state == "different":
+                        return ProviderDisplay(
+                            "claude", "Claude Code", "no_data", "Existing hook"
+                        )
                     return ProviderDisplay(
                         "claude", "Claude Code", "no_data", "Setup required"
                     )
@@ -420,7 +430,14 @@ class UsageWidget:
             highlightthickness=0,
             borderwidth=0,
         )
-        self.cards_canvas.pack(fill="both", expand=True)
+        self.cards_scrollbar = self.ttk.Scrollbar(
+            viewport,
+            orient="vertical",
+            command=self.cards_canvas.yview,
+        )
+        self.cards_scrollbar.pack(side="right", fill="y", padx=(5, 0))
+        self.cards_canvas.configure(yscrollcommand=self.cards_scrollbar.set)
+        self.cards_canvas.pack(side="left", fill="both", expand=True)
         self.cards = self.tk.Frame(self.cards_canvas, bg=self.BG)
         self.cards_window = self.cards_canvas.create_window(
             (0, 0), window=self.cards, anchor="nw"
@@ -449,6 +466,14 @@ class UsageWidget:
         self.root.bind(
             "<Button-5>", lambda _event: self.cards_canvas.yview_scroll(1, "units")
         )
+        self.root.bind(
+            "<Prior>", lambda _event: self.cards_canvas.yview_scroll(-1, "pages")
+        )
+        self.root.bind(
+            "<Next>", lambda _event: self.cards_canvas.yview_scroll(1, "pages")
+        )
+        self.root.bind("<Home>", lambda _event: self.cards_canvas.yview_moveto(0))
+        self.root.bind("<End>", lambda _event: self.cards_canvas.yview_moveto(1))
 
         self.tk.Label(
             self.root,
@@ -519,7 +544,13 @@ class UsageWidget:
         if display.status == "error":
             return "Could not refresh. Your saved provider session was not changed."
         if display.status == "no_data" and display.provider_id == "claude":
-            return "Enable the Claude status-line capture to begin receiving usage."
+            if display.status_text == "Setup required":
+                return "Enable the Claude Code status-line capture to begin receiving usage."
+            if display.status_text == "Waiting for prompt":
+                return "Send a prompt in Claude Code. Free-tier accounts expose session context, not plan limits."
+            if display.status_text == "Existing hook":
+                return "Claude already has a different status line, so it was left unchanged."
+            return "No plan limits were supplied. On the free tier, send another Claude Code prompt for session context."
         if display.status == "no_data" and display.provider_id == "devin":
             return "Open Devin once to refresh its normalized local plan cache."
         if display.status == "no_data" and display.provider_id == "antigravity":
@@ -608,7 +639,11 @@ class UsageWidget:
                     self.refresh_all,
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
-            elif display.status == "no_data" and display.provider_id == "claude":
+            elif (
+                display.status == "no_data"
+                and display.provider_id == "claude"
+                and display.status_text == "Setup required"
+            ):
                 self._button(
                     detail_row,
                     "Configure",

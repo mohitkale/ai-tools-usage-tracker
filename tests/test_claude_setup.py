@@ -7,6 +7,7 @@ import unittest
 
 from ai_usage_tracker.providers.claude_setup import (
     ClaudeSetupError,
+    claude_status_line_state,
     format_status_command,
     install_claude_status_line,
 )
@@ -36,6 +37,12 @@ class ClaudeSetupTests(unittest.TestCase):
                 format_status_command(
                     ("/Applications/AI Usage Tracker", "--claude-capture")
                 ),
+            )
+            self.assertEqual(
+                claude_status_line_state(
+                    ("/Applications/AI Usage Tracker", "--claude-capture"), path
+                ),
+                "installed",
             )
 
     def test_never_overwrites_an_existing_status_line(self) -> None:

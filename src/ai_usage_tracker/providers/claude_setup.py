@@ -8,7 +8,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence
 
 
 MAX_CLAUDE_SETTINGS_BYTES = 1024 * 1024
@@ -123,3 +123,22 @@ def install_claude_status_line(
             except FileNotFoundError:
                 pass
     return True
+
+
+def claude_status_line_state(
+    argv: Sequence[str],
+    settings_path: Path | None = None,
+) -> Literal["absent", "installed", "different"]:
+    """Report only whether our exact command is configured, never its contents."""
+    path = (settings_path or default_claude_settings()).expanduser()
+    document = _read_settings(path)
+    existing = document.get("statusLine")
+    if existing is None:
+        return "absent"
+    if (
+        isinstance(existing, dict)
+        and existing.get("type") == "command"
+        and existing.get("command") == format_status_command(argv)
+    ):
+        return "installed"
+    return "different"

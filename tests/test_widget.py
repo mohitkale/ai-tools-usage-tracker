@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 import unittest
+from unittest.mock import patch
 
 from ai_usage_tracker.model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus
 from ai_usage_tracker.widget import (
@@ -37,7 +38,7 @@ class WidgetFormattingTests(unittest.TestCase):
 
         display = display_from_snapshot(snapshot)
 
-        self.assertEqual(display.status_text, "Live")
+        self.assertEqual(display.status_text, "Live API")
         self.assertEqual(display.windows[0].amount_text, "$5.00 of $20.00")
         self.assertEqual(display.windows[0].used_percent, 25)
         self.assertTrue(display.windows[0].reset_text.startswith("Resets "))
@@ -82,7 +83,11 @@ class WidgetCollectorTests(unittest.TestCase):
         from pathlib import Path
 
         with tempfile.TemporaryDirectory() as directory:
-            display = ProviderCollector(Path(directory)).collect("claude")
+            with patch(
+                "ai_usage_tracker.widget.claude_status_line_state",
+                return_value="absent",
+            ):
+                display = ProviderCollector(Path(directory)).collect("claude")
         self.assertEqual(display.status, "no_data")
         self.assertEqual(display.status_text, "Setup required")
 

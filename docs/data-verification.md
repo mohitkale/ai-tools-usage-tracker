@@ -31,6 +31,11 @@ live payload requires the user to explicitly configure a Claude status-line
 command. It reads the payload from stdin and has no credential or network
 permission.
 
+Anthropic supplies `rate_limits` only to Claude.ai Pro/Max subscribers after an
+API response. When that object is absent on the free tier, the adapter uses the
+official `context_window.used_percentage` field and labels it `Session context`;
+it does not misrepresent session context as an account allowance.
+
 The `claude-capture` command can serve as that status-line target. It writes one
 normalized snapshot atomically with user-only permissions and prints a short
 status-line summary. It does not retain the incoming payload. The widget can add

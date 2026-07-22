@@ -42,16 +42,7 @@ def parse_status_payload(
 
     rate_limits = document.get("rate_limits")
     now = collected_at or utc_now()
-    if rate_limits is None:
-        return ProviderSnapshot(
-            provider_id="claude",
-            display_name="Claude Code",
-            status=SnapshotStatus.NO_DATA,
-            source=source,
-            collected_at=now,
-            message="Rate limits are absent until an eligible subscription receives its first response.",
-        )
-    if not isinstance(rate_limits, dict):
+    if rate_limits is not None and not isinstance(rate_limits, dict):
         raise ValueError("Claude rate_limits must be an object")
 
     definitions = (
@@ -60,7 +51,7 @@ def parse_status_payload(
     )
     windows: list[QuotaWindow] = []
     for window_id, label, seconds in definitions:
-        raw_window = rate_limits.get(window_id)
+        raw_window = rate_limits.get(window_id) if isinstance(rate_limits, dict) else None
         if raw_window is None:
             continue
         if not isinstance(raw_window, dict):
@@ -84,13 +75,35 @@ def parse_status_payload(
         )
 
     if not windows:
+        context_window = document.get("context_window")
+        if context_window is not None and not isinstance(context_window, dict):
+            raise ValueError("Claude context_window must be an object")
+        context_percentage = (
+            context_window.get("used_percentage")
+            if isinstance(context_window, dict)
+            else None
+        )
+        if context_percentage is not None:
+            windows.append(
+                QuotaWindow(
+                    id="session_context",
+                    label="Session context",
+                    unit="percent",
+                    used_percent=_number(
+                        context_percentage,
+                        "context_window.used_percentage",
+                    ),
+                )
+            )
+
+    if not windows:
         return ProviderSnapshot(
             provider_id="claude",
             display_name="Claude Code",
             status=SnapshotStatus.NO_DATA,
             source=source,
             collected_at=now,
-            message="No supported Claude quota windows were present.",
+            message="Claude supplied no subscription limits or session-context usage.",
         )
     return ProviderSnapshot(
         provider_id="claude",
@@ -100,4 +113,3 @@ def parse_status_payload(
         collected_at=now,
         windows=tuple(windows),
     )
-

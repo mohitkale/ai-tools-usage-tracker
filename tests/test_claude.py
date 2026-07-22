@@ -9,6 +9,16 @@ from ai_usage_tracker.providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_st
 
 
 class ClaudeStatusParserTests(unittest.TestCase):
+    def test_free_tier_falls_back_to_session_context_usage(self) -> None:
+        snapshot = parse_status_payload(
+            b'{"context_window":{"used_percentage":37.5}}',
+            collected_at=datetime(2026, 7, 22, tzinfo=UTC),
+        )
+
+        self.assertEqual(snapshot.status, SnapshotStatus.AVAILABLE)
+        self.assertEqual(snapshot.windows[0].id, "session_context")
+        self.assertEqual(snapshot.windows[0].used_percent, 37.5)
+
     def setUp(self) -> None:
         self.now = datetime(2026, 7, 22, tzinfo=UTC)
 
@@ -56,4 +66,3 @@ class ClaudeStatusParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

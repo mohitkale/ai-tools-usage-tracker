@@ -59,6 +59,11 @@ The widget currently supports:
 Local cache cards are marked **Cached** after 30 minutes. Every provider remains
 disabled until it is explicitly connected.
 
+Claude Code supplies 5-hour and 7-day subscription limits only for Pro/Max
+accounts. On the free tier, the same local hook displays the current session's
+context-window percentage after the next Claude Code assistant response. Merely
+opening Claude or this widget does not trigger a status-line update.
+
 Its exact local data flow and retained settings are documented in
 [docs/widget-security.md](docs/widget-security.md).
 
