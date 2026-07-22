@@ -53,6 +53,8 @@ class CursorUsageParserTests(unittest.TestCase):
                 _field(3, 0, 200),
                 _field(4, 0, 1500),
                 _field(5, 0, 2000),
+                _field(12, 1, 30.0),
+                _field(13, 1, 10.0),
                 _field(14, 1, 25.0),
                 _field(7, 2, b"CANARY_SECRET_TOOLTIP"),
             )
@@ -79,9 +81,15 @@ class CursorUsageParserTests(unittest.TestCase):
 
         self.assertEqual(snapshot.status, SnapshotStatus.AVAILABLE)
         self.assertEqual(snapshot.source, DataSource.PRIVATE_PROVIDER_API)
+        self.assertEqual(snapshot.windows[0].label, "Total usage")
+        self.assertEqual(snapshot.windows[0].used, 700)
+        self.assertIsNone(snapshot.windows[0].limit)
         self.assertEqual(snapshot.windows[0].used_percent, 25)
-        self.assertEqual(snapshot.windows[0].remaining, 1500)
-        self.assertEqual(snapshot.windows[1].used_percent, 25)
+        self.assertEqual(snapshot.windows[1].label, "Auto models")
+        self.assertEqual(snapshot.windows[1].used_percent, 30)
+        self.assertEqual(snapshot.windows[2].label, "API models")
+        self.assertEqual(snapshot.windows[2].used_percent, 10)
+        self.assertEqual(snapshot.windows[3].used_percent, 25)
         serialized = json.dumps(snapshot.to_dict())
         self.assertNotIn("CANARY_SECRET", serialized)
 
@@ -91,15 +99,22 @@ class CursorUsageParserTests(unittest.TestCase):
         )
         self.assertEqual(snapshot.status, SnapshotStatus.NO_DATA)
 
-    def test_derives_zero_remaining_at_the_included_limit(self) -> None:
+    def test_does_not_present_included_bucket_as_total_usage(self) -> None:
         snapshot = parse_usage_summary(
             {
                 "enabled": True,
-                "plan_usage": {"included_spend": 2000, "limit": 2000},
+                "plan_usage": {
+                    "total_spend": 8827,
+                    "included_spend": 2000,
+                    "limit": 2000,
+                    "total_percent_used": 25.5855,
+                },
             },
             collected_at=datetime(2026, 7, 22, tzinfo=UTC),
         )
-        self.assertEqual(snapshot.windows[0].remaining, 0)
+        self.assertEqual(snapshot.windows[0].used, 8827)
+        self.assertIsNone(snapshot.windows[0].limit)
+        self.assertAlmostEqual(snapshot.windows[0].used_percent, 25.5855)
 
     def test_rejects_truncated_protobuf(self) -> None:
         with self.assertRaises(ValueError):

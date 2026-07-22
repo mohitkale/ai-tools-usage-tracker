@@ -326,26 +326,41 @@ def parse_usage_summary(
     windows: list[QuotaWindow] = []
     plan = document.get("plan_usage")
     if isinstance(plan, dict):
-        used = _optional_number(plan.get("included_spend"), "plan included spend")
-        limit = _optional_number(plan.get("limit"), "plan limit")
-        remaining = _optional_number(plan.get("remaining"), "plan remaining")
-        if remaining is None and used is not None and limit is not None:
-            remaining = max(limit - used, 0)
-        percent = _percentage(used, limit, plan.get("total_percent_used"))
-        if any(value is not None for value in (used, limit, remaining, percent)):
+        # Cursor's `included_spend` and `limit` fields describe only the included
+        # dollar bucket. They are not the account's total usage or a hard total
+        # allowance. Prefer Cursor's explicit total fields to avoid displaying a
+        # misleading "$20 of $20" card after bonus/on-demand usage has begun.
+        used = _optional_number(plan.get("total_spend"), "plan total spend")
+        percent = _percentage(None, None, plan.get("total_percent_used"))
+        if used is not None or percent is not None:
             windows.append(
                 QuotaWindow(
                     id="billing_cycle",
-                    label="Included usage",
+                    label="Total usage",
                     unit="currency_cents",
                     used=used,
-                    limit=limit,
-                    remaining=remaining,
                     used_percent=percent,
                     window_seconds=window_seconds,
                     resets_at=resets_at,
                 )
             )
+
+        for window_id, label, field in (
+            ("auto_models", "Auto models", "auto_percent_used"),
+            ("api_models", "API models", "api_percent_used"),
+        ):
+            category_percent = _percentage(None, None, plan.get(field))
+            if category_percent is not None:
+                windows.append(
+                    QuotaWindow(
+                        id=window_id,
+                        label=label,
+                        unit="percent",
+                        used_percent=category_percent,
+                        window_seconds=window_seconds,
+                        resets_at=resets_at,
+                    )
+                )
 
     spend = document.get("spend_limit_usage")
     if isinstance(spend, dict):

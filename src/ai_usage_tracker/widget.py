@@ -163,6 +163,10 @@ def _format_amount(window: Mapping[str, Any], percent: float | None) -> str:
     unit = window.get("unit")
     if unit == "currency_cents" and used is not None and limit is not None:
         return f"{_format_money(used)} of {_format_money(limit)}"
+    if unit == "currency_cents" and used is not None:
+        if percent is not None:
+            return f"{_format_money(used)} · {percent:.0f}% used"
+        return f"{_format_money(used)} used"
     if used is not None and limit is not None:
         return f"{used:g} of {limit:g}"
     if percent is not None:
