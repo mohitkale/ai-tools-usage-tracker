@@ -27,6 +27,7 @@ from .providers.github_copilot import (
     GitHubCopilotProbeError,
     read_copilot_usage,
     safe_error_guidance,
+    safe_error_status,
 )
 from .storage import SnapshotStore
 from .widget_settings import SUPPORTED_PROVIDERS, WidgetSettings, WidgetSettingsStore
@@ -280,12 +281,16 @@ def loading_display(provider_id: str) -> ProviderDisplay:
     )
 
 
-def error_display(provider_id: str, detail: str | None = None) -> ProviderDisplay:
+def error_display(
+    provider_id: str,
+    detail: str | None = None,
+    status_text: str = "Needs attention",
+) -> ProviderDisplay:
     return ProviderDisplay(
         provider_id,
         PROVIDER_NAMES[provider_id],
         "error",
-        "Needs attention",
+        status_text,
         detail=detail,
     )
 
@@ -324,7 +329,11 @@ class ProviderCollector:
             if provider_id == "antigravity":
                 return display_from_snapshot(read_antigravity_usage())
         except GitHubCopilotProbeError as exc:
-            return error_display(provider_id, safe_error_guidance(exc))
+            return error_display(
+                provider_id,
+                safe_error_guidance(exc),
+                safe_error_status(exc),
+            )
         except Exception:
             # UI errors are intentionally generic. Provider exceptions can contain
             # local paths or unreviewed payload fragments and are never displayed.

@@ -25,6 +25,10 @@ class GitHubCopilotProbeError(RuntimeError):
 
 _SAFE_ERROR_GUIDANCE = {
     "GitHub CLI was not found": "Install GitHub CLI and sign in, then retry.",
+    "GitHub CLI is not signed in": (
+        "GitHub CLI is not signed in. Run `gh auth login --hostname github.com`, "
+        "then retry."
+    ),
     "GitHub CLI could not be resolved": (
         "The GitHub CLI installation could not be used. Reinstall it, then retry."
     ),
@@ -45,6 +49,13 @@ _SAFE_ERROR_GUIDANCE = {
     ),
 }
 
+_SAFE_ERROR_STATUSES = {
+    "GitHub CLI was not found": "CLI required",
+    "GitHub CLI could not be resolved": "CLI required",
+    "GitHub CLI is not executable": "CLI required",
+    "GitHub CLI is not signed in": "Sign-in required",
+}
+
 
 def safe_error_guidance(error: GitHubCopilotProbeError) -> str:
     """Map only exact reviewed failures to UI text; never render exception content."""
@@ -52,6 +63,11 @@ def safe_error_guidance(error: GitHubCopilotProbeError) -> str:
         str(error),
         "GitHub Copilot usage could not be refreshed. Verify GitHub CLI sign-in and retry.",
     )
+
+
+def safe_error_status(error: GitHubCopilotProbeError) -> str:
+    """Return a short allowlisted badge; unknown failures remain generic."""
+    return _SAFE_ERROR_STATUSES.get(str(error), "Needs attention")
 
 
 def resolve_gh_executable(explicit: str | None = None) -> Path:
@@ -130,6 +146,23 @@ def _run_gh(executable: Path, arguments: Sequence[str]) -> bytes:
     if len(result.stdout) > MAX_GH_OUTPUT_BYTES:
         raise GitHubCopilotProbeError("GitHub usage response exceeded the size limit")
     return result.stdout
+
+
+def _require_gh_authentication(executable: Path) -> None:
+    try:
+        result = subprocess.run(
+            (str(executable), "auth", "status", "--hostname", "github.com"),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_minimal_environment(),
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GitHubCopilotProbeError("GitHub CLI usage request failed") from exc
+    if result.returncode != 0:
+        raise GitHubCopilotProbeError("GitHub CLI is not signed in")
 
 
 def _read_login(executable: Path) -> str:
@@ -237,6 +270,7 @@ def read_copilot_usage(
     collected_at: datetime | None = None,
 ) -> ProviderSnapshot:
     gh = executable or resolve_gh_executable()
+    _require_gh_authentication(gh)
     now = collected_at or utc_now()
     login = _read_login(gh)
     try:

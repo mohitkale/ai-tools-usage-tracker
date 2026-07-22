@@ -163,6 +163,16 @@ class WidgetCollectorTests(unittest.TestCase):
         self.assertEqual(display.status, "error")
         self.assertEqual(display.detail, "Install GitHub CLI and sign in, then retry.")
 
+    def test_github_sign_in_failure_has_an_explicit_status(self) -> None:
+        with patch(
+            "ai_usage_tracker.widget.read_copilot_usage",
+            side_effect=GitHubCopilotProbeError("GitHub CLI is not signed in"),
+        ):
+            display = ProviderCollector().collect("github_copilot")
+
+        self.assertEqual(display.status_text, "Sign-in required")
+        self.assertIn("gh auth login", display.detail)
+
     def test_unexpected_github_failure_does_not_reach_the_ui(self) -> None:
         with patch(
             "ai_usage_tracker.widget.read_copilot_usage",

@@ -5,14 +5,17 @@ import json
 from pathlib import Path
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from ai_usage_tracker.model import DataSource, SnapshotStatus
 from ai_usage_tracker.providers.github_copilot import (
     GitHubCopilotProbeError,
+    _require_gh_authentication,
     _read_login,
     parse_premium_request_usage,
     read_copilot_usage,
     safe_error_guidance,
+    safe_error_status,
 )
 
 
@@ -62,6 +65,16 @@ class GitHubCopilotParserTests(unittest.TestCase):
 
 
 class GitHubCopilotProcessTests(unittest.TestCase):
+    def test_requires_an_authenticated_github_cli_session(self) -> None:
+        with patch(
+            "ai_usage_tracker.providers.github_copilot.subprocess.run",
+            return_value=SimpleNamespace(returncode=1),
+        ):
+            with self.assertRaisesRegex(
+                GitHubCopilotProbeError, "GitHub CLI is not signed in"
+            ):
+                _require_gh_authentication(Path("/usr/bin/gh"))
+
     def test_error_guidance_uses_only_reviewed_exact_messages(self) -> None:
         known = safe_error_guidance(GitHubCopilotProbeError("GitHub CLI was not found"))
         unknown = safe_error_guidance(
@@ -70,6 +83,12 @@ class GitHubCopilotProcessTests(unittest.TestCase):
 
         self.assertIn("Install GitHub CLI", known)
         self.assertNotIn("CANARY", unknown)
+
+    def test_unauthenticated_status_is_explicit_and_allowlisted(self) -> None:
+        error = GitHubCopilotProbeError("GitHub CLI is not signed in")
+
+        self.assertEqual(safe_error_status(error), "Sign-in required")
+        self.assertIn("gh auth login", safe_error_guidance(error))
 
     def test_validates_login_before_using_it_in_a_path(self) -> None:
         with patch(
@@ -85,6 +104,8 @@ class GitHubCopilotProcessTests(unittest.TestCase):
             b'{"usageItems":[{"product":"Copilot","unitType":"requests","grossQuantity":4}]}',
         ]
         with patch(
+            "ai_usage_tracker.providers.github_copilot._require_gh_authentication"
+        ), patch(
             "ai_usage_tracker.providers.github_copilot._run_gh",
             side_effect=responses,
         ) as runner:
