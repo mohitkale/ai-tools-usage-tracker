@@ -67,6 +67,20 @@ opening Claude or this widget does not trigger a status-line update.
 Its exact local data flow and retained settings are documented in
 [docs/widget-security.md](docs/widget-security.md).
 
+## Provider names and logos
+
+Provider names are used only to identify the services this independent utility
+connects to. The project is not affiliated with, endorsed by, or sponsored by
+the listed providers. Official provider logos are intentionally not bundled:
+their trademark permissions differ by vendor and are not granted by this
+project's eventual open-source code license. The compact letter marks in the UI
+are neutral project-owned identifiers, not reproductions of provider logos.
+
+Before accepting a branded asset, maintainers should record its official source,
+applicable usage terms, required attribution, and whether redistribution inside
+source and binary releases is permitted. Plain-text provider names remain the
+safe default.
+
 ## Packaging
 
 PyInstaller is a pinned build-only dependency; the application itself has no

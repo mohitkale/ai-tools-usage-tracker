@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+import time
 import unittest
 from unittest.mock import patch
 
@@ -8,6 +10,7 @@ from ai_usage_tracker.model import DataSource, ProviderSnapshot, QuotaWindow, Sn
 from ai_usage_tracker.widget import (
     PROVIDER_ORDER,
     ProviderCollector,
+    UsageWidget,
     disabled_display,
     display_from_snapshot,
     planned_display,
@@ -15,6 +18,30 @@ from ai_usage_tracker.widget import (
 
 
 class WidgetFormattingTests(unittest.TestCase):
+    def test_manual_refresh_cooldown_avoids_duplicate_collection(self) -> None:
+        widget = UsageWidget.__new__(UsageWidget)
+        widget.closed = False
+        widget.last_refresh_started = time.monotonic()
+        widget.settings = SimpleNamespace(enabled_providers={"cursor"})
+        widget.in_progress = set()
+        widget.displays = {}
+
+        widget.refresh_all()
+
+        self.assertEqual(widget.in_progress, set())
+
+    def test_mouse_wheel_scrolls_when_pointer_is_over_child_content(self) -> None:
+        calls = []
+        widget = UsageWidget.__new__(UsageWidget)
+        widget.cards_canvas = SimpleNamespace(
+            yview_scroll=lambda units, mode: calls.append((units, mode))
+        )
+
+        result = widget._on_mousewheel(SimpleNamespace(delta=-1, num=None))
+
+        self.assertEqual(result, "break")
+        self.assertEqual(calls, [(1, "units")])
+
     def test_formats_cursor_money_percentage_and_local_reset(self) -> None:
         snapshot = ProviderSnapshot(
             provider_id="cursor",

@@ -8,6 +8,7 @@ from pathlib import Path
 import queue
 import sys
 import threading
+import time
 from typing import Any, Mapping, Sequence
 
 from .model import ProviderSnapshot
@@ -337,6 +338,9 @@ class UsageWidget:
     AMBER = "#F3BC5B"
     RED = "#F17B82"
     TRACK = "#293344"
+    SCROLL_TRACK = "#0F151E"
+    SCROLL_THUMB = "#3A4657"
+    MANUAL_REFRESH_COOLDOWN_SECONDS = 15.0
 
     def __init__(
         self,
@@ -368,6 +372,10 @@ class UsageWidget:
         self.in_progress: set[str] = set()
         self.closed = False
         self.refresh_job: str | None = None
+        self.render_job: str | None = None
+        self.last_refresh_started = 0.0
+        self.scroll_first = 0.0
+        self.scroll_last = 1.0
         self.displays = {
             provider_id: (
                 disabled_display(provider_id)
@@ -376,17 +384,17 @@ class UsageWidget:
             )
             for provider_id in PROVIDER_ORDER
         }
-        self.updated_text = tk.StringVar(value="All provider access is opt-in")
+        self.updated_text = tk.StringVar(value="Not updated")
 
         self._configure_window()
         self._build_layout()
         self._render_cards()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.root.after(120, self._poll_results)
-        self.root.after(200, self.refresh_all)
+        self.root.after(200, lambda: self.refresh_all(force=True))
 
     def _configure_window(self) -> None:
-        self.root.title("AI Usage Tracker")
+        self.root.title("Mohit's AI Aggregator")
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
@@ -407,6 +415,11 @@ class UsageWidget:
     def _font(self, size: int, weight: str = "normal") -> tuple[str, int, str]:
         return (self.font_family, size, weight)
 
+    @staticmethod
+    def _updated_time_text() -> str:
+        local = datetime.now().astimezone()
+        return f"Updated {local.strftime('%I:%M %p').lstrip('0')}"
+
     def _build_layout(self) -> None:
         header = self.tk.Frame(self.root, bg=self.BG)
         header.pack(fill="x", padx=16, pady=(13, 10))
@@ -420,30 +433,40 @@ class UsageWidget:
         )
         brand.pack(side="left", padx=(0, 9))
         brand.create_oval(2, 2, 26, 26, fill=self.ACCENT, outline="")
-        brand.create_text(14, 14, text="A", fill="#FFFFFF", font=self._font(9, "bold"))
+        brand.create_text(14, 14, text="M", fill="#FFFFFF", font=self._font(9, "bold"))
         title_group = self.tk.Frame(header, bg=self.BG)
         title_group.pack(side="left")
         self.tk.Label(
             title_group,
-            text="AI Usage",
+            text="Mohit's AI Aggregator",
             bg=self.BG,
             fg=self.TEXT,
             font=self._font(14, "bold"),
         ).pack(anchor="w")
+        controls = self.tk.Frame(header, bg=self.BG)
+        controls.pack(side="right")
+        self._button(
+            controls,
+            "↻",
+            self.refresh_all,
+            compact=True,
+            icon=True,
+        ).pack(side="right")
+        self._button(
+            controls,
+            "⚙",
+            self.open_settings,
+            compact=True,
+            icon=True,
+        ).pack(side="right", padx=(0, 5))
         self.tk.Label(
-            title_group,
+            controls,
             textvariable=self.updated_text,
             bg=self.BG,
             fg=self.MUTED,
-            font=self._font(8),
-        ).pack(anchor="w")
-        controls = self.tk.Frame(header, bg=self.BG)
-        controls.pack(side="right")
-        self._button(controls, "Refresh", self.refresh_all, compact=True).pack(
-            side="left", padx=(0, 5)
-        )
-        self._button(controls, "Settings", self.open_settings, compact=True).pack(
-            side="left"
+            font=self._font(7),
+        ).pack(
+            side="right", padx=(0, 9)
         )
 
         self.tk.Frame(self.root, height=1, bg=self.CARD_BORDER).pack(fill="x")
@@ -455,21 +478,22 @@ class UsageWidget:
             bg=self.BG,
             highlightthickness=0,
             borderwidth=0,
+            yscrollincrement=24,
         )
-        self.cards_scrollbar = self.tk.Scrollbar(
+        self.cards_scrollbar = self.tk.Canvas(
             viewport,
-            orient="vertical",
-            command=self.cards_canvas.yview,
-            width=8,
-            bg=self.CARD_BORDER,
-            activebackground=self.MUTED,
-            troughcolor=self.BG,
+            width=10,
+            bg=self.BG,
             borderwidth=0,
             highlightthickness=0,
-            relief="flat",
         )
         self.cards_scrollbar.pack(side="right", fill="y", padx=(6, 0))
-        self.cards_canvas.configure(yscrollcommand=self.cards_scrollbar.set)
+        self.cards_canvas.configure(yscrollcommand=self._update_scrollbar)
+        self.cards_scrollbar.bind("<Button-1>", self._scrollbar_pointer)
+        self.cards_scrollbar.bind("<B1-Motion>", self._scrollbar_pointer)
+        self.cards_scrollbar.bind(
+            "<Configure>", lambda _event: self._draw_scrollbar()
+        )
         self.cards_canvas.pack(side="left", fill="both", expand=True)
         self.cards = self.tk.Frame(self.cards_canvas, bg=self.BG)
         self.cards_window = self.cards_canvas.create_window(
@@ -487,18 +511,9 @@ class UsageWidget:
                 self.cards_window, width=event.width
             ),
         )
-        self.root.bind(
-            "<MouseWheel>",
-            lambda event: self.cards_canvas.yview_scroll(
-                -1 if event.delta > 0 else 1, "units"
-            ),
-        )
-        self.root.bind(
-            "<Button-4>", lambda _event: self.cards_canvas.yview_scroll(-1, "units")
-        )
-        self.root.bind(
-            "<Button-5>", lambda _event: self.cards_canvas.yview_scroll(1, "units")
-        )
+        self.root.bind_all("<MouseWheel>", self._on_mousewheel, add="+")
+        self.root.bind_all("<Button-4>", self._on_mousewheel, add="+")
+        self.root.bind_all("<Button-5>", self._on_mousewheel, add="+")
         self.root.bind(
             "<Prior>", lambda _event: self.cards_canvas.yview_scroll(-1, "pages")
         )
@@ -534,6 +549,150 @@ class UsageWidget:
             font=self._font(7),
         ).pack(side="right")
 
+    def _rounded_shape(
+        self,
+        canvas: Any,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        radius: float,
+        color: str,
+        *,
+        tag: str,
+    ) -> None:
+        radius = min(radius, (x2 - x1) / 2, (y2 - y1) / 2)
+        canvas.create_rectangle(
+            x1 + radius,
+            y1,
+            x2 - radius,
+            y2,
+            fill=color,
+            outline="",
+            tags=tag,
+        )
+        canvas.create_rectangle(
+            x1,
+            y1 + radius,
+            x2,
+            y2 - radius,
+            fill=color,
+            outline="",
+            tags=tag,
+        )
+        for left, top in (
+            (x1, y1),
+            (x2 - 2 * radius, y1),
+            (x1, y2 - 2 * radius),
+            (x2 - 2 * radius, y2 - 2 * radius),
+        ):
+            canvas.create_oval(
+                left,
+                top,
+                left + 2 * radius,
+                top + 2 * radius,
+                fill=color,
+                outline="",
+                tags=tag,
+            )
+
+    def _rounded_surface(
+        self,
+        canvas: Any,
+        width: int,
+        height: int,
+        radius: int,
+        fill: str,
+        border: str,
+        *,
+        tag: str,
+    ) -> None:
+        canvas.delete(tag)
+        self._rounded_shape(
+            canvas, 0, 0, width, height, radius, border, tag=tag
+        )
+        self._rounded_shape(
+            canvas,
+            1,
+            1,
+            width - 1,
+            height - 1,
+            max(radius - 1, 1),
+            fill,
+            tag=tag,
+        )
+        canvas.tag_lower(tag)
+
+    def _update_scrollbar(self, first: Any, last: Any) -> None:
+        try:
+            self.scroll_first = min(max(float(first), 0), 1)
+            self.scroll_last = min(max(float(last), self.scroll_first), 1)
+        except (TypeError, ValueError):
+            self.scroll_first, self.scroll_last = 0.0, 1.0
+        self._draw_scrollbar()
+
+    def _scrollbar_geometry(self) -> tuple[float, float, float]:
+        height = max(float(self.cards_scrollbar.winfo_height()), 1)
+        usable = max(height - 4, 1)
+        fraction = max(self.scroll_last - self.scroll_first, 0)
+        thumb_height = min(usable, max(30.0, usable * fraction))
+        travel = max(usable - thumb_height, 0)
+        denominator = max(1.0 - fraction, 0.0001)
+        top = 2 + travel * min(self.scroll_first / denominator, 1)
+        return height, top, thumb_height
+
+    def _draw_scrollbar(self) -> None:
+        if not hasattr(self, "cards_scrollbar"):
+            return
+        self.cards_scrollbar.delete("scrollbar")
+        height, top, thumb_height = self._scrollbar_geometry()
+        if height < 8:
+            return
+        self._rounded_shape(
+            self.cards_scrollbar,
+            2,
+            1,
+            8,
+            height - 1,
+            3,
+            self.SCROLL_TRACK,
+            tag="scrollbar",
+        )
+        if self.scroll_last - self.scroll_first < 0.999:
+            self._rounded_shape(
+                self.cards_scrollbar,
+                2,
+                top,
+                8,
+                top + thumb_height,
+                3,
+                self.SCROLL_THUMB,
+                tag="scrollbar",
+            )
+
+    def _scrollbar_pointer(self, event: Any) -> str:
+        height, _top, thumb_height = self._scrollbar_geometry()
+        travel = max(height - 4 - thumb_height, 1)
+        target = (event.y - 2 - thumb_height / 2) / travel
+        self.cards_canvas.yview_moveto(min(max(target, 0), 1))
+        return "break"
+
+    def _on_mousewheel(self, event: Any) -> str:
+        if getattr(event, "num", None) == 4:
+            units = -1
+        elif getattr(event, "num", None) == 5:
+            units = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return "break"
+            if sys.platform == "win32":
+                units = -max(-3, min(3, int(delta / 120) or (1 if delta > 0 else -1)))
+            else:
+                units = -1 if delta > 0 else 1
+        self.cards_canvas.yview_scroll(units, "units")
+        return "break"
+
     def _button(
         self,
         parent: Any,
@@ -542,41 +701,78 @@ class UsageWidget:
         *,
         accent: bool = False,
         compact: bool = False,
+        icon: bool = False,
     ) -> Any:
         background = self.ACCENT if accent else self.SURFACE
         foreground = "#FFFFFF" if accent else self.TEXT
-        button = self.tk.Label(
+        height = 30 if compact else 32
+        width = 30 if icon else max(58, len(text) * 7 + (16 if compact else 20))
+        try:
+            parent_background = parent.cget("bg")
+        except self.tk.TclError:
+            parent_background = self.BG
+        button = self.tk.Canvas(
             parent,
-            text=text,
-            bg=background,
-            fg=foreground,
-            font=self._font(8 if compact else 9, "bold"),
-            padx=8 if compact else 10,
-            pady=4 if compact else 5,
+            width=width,
+            height=height,
+            bg=parent_background,
             cursor="hand2",
-            highlightbackground=self.CARD_BORDER,
-            highlightcolor=self.ACCENT,
-            highlightthickness=1,
-            takefocus=True,
+            highlightthickness=0,
+            borderwidth=0,
+            takefocus=1,
+        )
+        border = self.ACCENT if accent else self.CARD_BORDER
+        self._rounded_surface(
+            button, width, height, 6, background, border, tag="button-bg"
+        )
+        button.create_text(
+            width / 2,
+            height / 2,
+            text=text,
+            fill=foreground,
+            font=self._font(12 if icon else 8 if compact else 9, "bold"),
+            tags="button-text",
         )
         button.bind("<Button-1>", lambda _event: command())
         button.bind("<Return>", lambda _event: command())
         button.bind("<space>", lambda _event: command())
         hover = self.CARD_HOVER if not accent else "#6979EE"
-        button.bind("<Enter>", lambda _event: button.configure(bg=hover))
-        button.bind("<Leave>", lambda _event: button.configure(bg=background))
+        button.bind(
+            "<Enter>",
+            lambda _event: self._rounded_surface(
+                button, width, height, 6, hover, border, tag="button-bg"
+            ),
+        )
+        button.bind(
+            "<Leave>",
+            lambda _event: self._rounded_surface(
+                button, width, height, 6, background, border, tag="button-bg"
+            ),
+        )
         return button
 
     def _render_cards(self) -> None:
+        previous_top = self.cards_canvas.yview()[0]
         for child in self.cards.winfo_children():
             child.destroy()
         for provider_id in PROVIDER_ORDER:
             self._render_card(self.displays[provider_id])
-        self.root.after_idle(
-            lambda: self.cards_canvas.configure(
-                scrollregion=self.cards_canvas.bbox("all")
-            )
-        )
+
+        def finish_layout() -> None:
+            self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
+            self.cards_canvas.yview_moveto(previous_top)
+
+        self.root.after_idle(finish_layout)
+
+    def _request_render(self) -> None:
+        if self.closed or self.render_job is not None:
+            return
+        self.render_job = self.root.after(120, self._flush_render)
+
+    def _flush_render(self) -> None:
+        self.render_job = None
+        if not self.closed:
+            self._render_cards()
 
     def _status_style(self, status: str) -> tuple[str, str]:
         if status == "available":
@@ -588,6 +784,36 @@ class UsageWidget:
         if status == "no_data":
             return "#3A2D1B", self.AMBER
         return "#202936", self.MUTED
+
+    def _status_badge(self, parent: Any, text: str, status: str) -> Any:
+        background, foreground = self._status_style(status)
+        width = max(38, int(len(text) * 5.6) + 16)
+        height = 22
+        badge = self.tk.Canvas(
+            parent,
+            width=width,
+            height=height,
+            bg=self.CARD,
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        self._rounded_surface(
+            badge,
+            width,
+            height,
+            5,
+            background,
+            foreground,
+            tag="badge-bg",
+        )
+        badge.create_text(
+            width / 2,
+            height / 2,
+            text=text,
+            fill=foreground,
+            font=self._font(7, "bold"),
+        )
+        return badge
 
     def _card_detail(self, display: ProviderDisplay) -> str:
         if display.status == "planned":
@@ -622,9 +848,30 @@ class UsageWidget:
             highlightthickness=1,
         )
         card.pack(fill="x", pady=3)
-        self.tk.Frame(card, width=3, bg=PROVIDER_COLORS[display.provider_id]).pack(
-            side="left", fill="y"
+        rail = self.tk.Canvas(
+            card,
+            width=4,
+            bg=self.CARD,
+            highlightthickness=0,
+            borderwidth=0,
         )
+        rail.pack(side="left", fill="y", padx=(2, 0), pady=3)
+
+        def draw_rail(event: Any) -> None:
+            rail.delete("provider-rail")
+            if event.height >= 6:
+                self._rounded_shape(
+                    rail,
+                    0,
+                    0,
+                    4,
+                    event.height,
+                    2,
+                    PROVIDER_COLORS[display.provider_id],
+                    tag="provider-rail",
+                )
+
+        rail.bind("<Configure>", draw_rail)
         content = self.tk.Frame(card, bg=self.CARD)
         content.pack(side="left", fill="x", expand=True, padx=10, pady=8)
         icon = self.tk.Canvas(
@@ -656,20 +903,21 @@ class UsageWidget:
             fg=self.TEXT,
             font=self._font(10, "bold"),
         ).pack(side="left")
-        status_bg, status_color = self._status_style(display.status)
-        self.tk.Label(
-            heading,
-            text=display.status_text,
-            bg=status_bg,
-            fg=status_color,
-            font=self._font(7, "bold"),
-            padx=6,
-            pady=1,
-        ).pack(side="right")
+        self._status_badge(heading, display.status_text, display.status).pack(
+            side="right"
+        )
 
         if not display.windows:
             detail_row = self.tk.Frame(body, bg=self.CARD)
             detail_row.pack(fill="x", pady=(3, 0))
+            has_action = (
+                display.status in {"ready", "error"}
+                or (
+                    display.status == "no_data"
+                    and display.provider_id == "claude"
+                    and display.status_text == "Setup required"
+                )
+            )
             self.tk.Label(
                 detail_row,
                 text=self._card_detail(display),
@@ -678,7 +926,7 @@ class UsageWidget:
                 font=self._font(8),
                 justify="left",
                 anchor="w",
-                wraplength=315,
+                wraplength=285 if has_action else 375,
             ).pack(side="left", fill="x", expand=True)
             if display.status == "ready":
                 self._button(
@@ -762,10 +1010,19 @@ class UsageWidget:
                 font=self._font(7),
             ).pack(anchor="e", pady=(4, 0))
 
-    def refresh_all(self) -> None:
+    def refresh_all(self, *, force: bool = False) -> None:
         if self.closed:
             return
+        now = time.monotonic()
+        if (
+            not force
+            and self.last_refresh_started
+            and now - self.last_refresh_started
+            < self.MANUAL_REFRESH_COOLDOWN_SECONDS
+        ):
+            return
         enabled = self.settings.enabled_providers
+        started = False
         for provider_id in PROVIDER_ORDER:
             if provider_id not in SUPPORTED_PROVIDERS:
                 self.displays[provider_id] = planned_display(provider_id)
@@ -776,7 +1033,9 @@ class UsageWidget:
             if provider_id in self.in_progress:
                 continue
             self.in_progress.add(provider_id)
-            self.displays[provider_id] = loading_display(provider_id)
+            started = True
+            if not self.displays[provider_id].windows:
+                self.displays[provider_id] = loading_display(provider_id)
             thread = threading.Thread(
                 target=self._collect_in_background,
                 args=(provider_id,),
@@ -784,7 +1043,10 @@ class UsageWidget:
                 name=f"usage-{provider_id}",
             )
             thread.start()
-        self._render_cards()
+        if started:
+            self.last_refresh_started = now
+            self.updated_text.set("Updating…")
+        self._request_render()
         self._schedule_refresh()
 
     def _collect_in_background(self, provider_id: str) -> None:
@@ -804,15 +1066,17 @@ class UsageWidget:
                 self.displays[display.provider_id] = display
             changed = True
         if changed:
-            self.updated_text.set("Updated just now")
-            self._render_cards()
+            self.updated_text.set(self._updated_time_text())
+            self._request_render()
         self.root.after(120, self._poll_results)
 
     def _schedule_refresh(self) -> None:
         if self.refresh_job is not None:
             self.root.after_cancel(self.refresh_job)
         milliseconds = self.settings.refresh_minutes * 60 * 1000
-        self.refresh_job = self.root.after(milliseconds, self.refresh_all)
+        self.refresh_job = self.root.after(
+            milliseconds, lambda: self.refresh_all(force=True)
+        )
 
     def _save_settings(self, settings: WidgetSettings, parent: Any) -> bool:
         try:
@@ -846,7 +1110,7 @@ class UsageWidget:
             always_on_top=self.settings.always_on_top,
         )
         if self._save_settings(settings, self.root):
-            self.refresh_all()
+            self.refresh_all(force=True)
 
     def configure_claude(self) -> None:
         approved = self.messagebox.askyesno(
@@ -875,11 +1139,11 @@ class UsageWidget:
             "next response with rate-limit data.",
             parent=self.root,
         )
-        self.refresh_all()
+        self.refresh_all(force=True)
 
     def open_settings(self) -> None:
         dialog = self.tk.Toplevel(self.root)
-        dialog.title("AI Usage Settings")
+        dialog.title("Mohit's AI Aggregator Settings")
         dialog.configure(bg=self.BG)
         dialog.resizable(False, False)
         dialog.transient(self.root)
@@ -987,7 +1251,7 @@ class UsageWidget:
             if not self._save_settings(settings, dialog):
                 return
             dialog.destroy()
-            self.refresh_all()
+            self.refresh_all(force=True)
 
         save_button = self._button(actions, "Save & refresh", save, accent=True)
         save_button.pack(side="right", padx=(0, 8))
@@ -996,6 +1260,8 @@ class UsageWidget:
         self.closed = True
         if self.refresh_job is not None:
             self.root.after_cancel(self.refresh_job)
+        if self.render_job is not None:
+            self.root.after_cancel(self.render_job)
         self.root.destroy()
 
 
