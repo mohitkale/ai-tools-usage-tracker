@@ -23,8 +23,9 @@ tokens, cookies, account details, usage responses, paths, or provider payloads.
 
 Enabled collectors run on background daemon threads. UI updates pass only the
 normalized `ProviderSnapshot` fields through an in-memory queue. Refreshes do
-not persist Cursor or Codex responses. Claude uses the already-normalized local
-snapshot produced by its explicit status-line capture hook.
+not persist Cursor, Codex, GitHub, Devin, or Antigravity responses. Claude uses
+the already-normalized local snapshot produced by its explicit status-line
+capture hook.
 
 Unexpected collector exceptions are replaced with a generic `Needs attention`
 status. Exception messages, response bodies, local paths, and account metadata
@@ -34,16 +35,23 @@ before it completed.
 
 ## Provider-specific access
 
-- **Claude Code:** reads only the normalized app-owned snapshot. No credential
-  or provider network access occurs in the widget.
+- **Claude Code:** reads only the normalized app-owned snapshot. With explicit
+  confirmation, the widget adds its capture command only when no status line
+  exists; unrelated settings are preserved and raw status JSON is not retained.
 - **Codex:** starts the reviewed official local app-server with analytics
   disabled. Codex retains control of its own authentication.
 - **Cursor:** reads only `cursorAuth/accessToken` from Cursor's SQLite state in
   read-only/query-only mode and sends an empty usage request only to the pinned
   `api2.cursor.sh` endpoint.
-- **GitHub Copilot, Devin, and Antigravity:** remain visible in the provider
-  list as planned integrations, but have no enable action and perform no local
-  or network access.
+- **GitHub Copilot:** starts the official `gh` process and requests the personal
+  premium-request usage report. Authentication and GitHub network access remain
+  inside `gh`; the widget does not receive its token or retain the username.
+- **Devin:** selects only `windsurf.settings.cachedPlanInfo` from Devin's local
+  SQLite database in read-only/query-only mode. Auth and session rows are not
+  selected.
+- **Antigravity:** selects only
+  `antigravityUnifiedStateSync.modelCredits` from Antigravity's local SQLite
+  database in read-only/query-only mode. Its separate OAuth row is not selected.
 
 No adapter enumerates the operating-system keychain. The widget has no
 telemetry, crash uploader, remote configuration, automatic update client, or

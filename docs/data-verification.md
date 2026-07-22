@@ -33,8 +33,10 @@ permission.
 
 The `claude-capture` command can serve as that status-line target. It writes one
 normalized snapshot atomically with user-only permissions and prints a short
-status-line summary. It does not retain the incoming payload. The project does
-not automatically edit `~/.claude/settings.json` or its platform equivalents.
+status-line summary. It does not retain the incoming payload. The widget can add
+the capture command after confirmation. The installer uses an atomic user-only
+file update, preserves unrelated settings, and refuses to replace an existing
+status line or follow a settings symlink.
 
 
 ### Codex
@@ -60,8 +62,9 @@ covered by new fixtures before release.
 ### Cursor
 
 The private, default-disabled adapter was exercised against the installed
-Cursor desktop client and returned an available billing-cycle snapshot with an
-included-usage amount, limit, percentage, window duration, and reset time. Live
+Cursor desktop client and returned an available billing-cycle snapshot with a
+total-usage amount, Cursor's total/Auto/API percentages, window duration, and
+reset time. Live
 values were observed only in process output and were not written to this
 repository.
 
@@ -82,12 +85,23 @@ This RPC is the interface used by the installed Cursor desktop application, but
 it is undocumented. The adapter therefore remains experimental and disabled by
 default; a Cursor schema or authentication change must fail closed.
 
-## Pending adapters
+### GitHub Copilot
 
-- GitHub Copilot requires a separately scoped official API credential and was
-  not detected in the current VS Code profile during research.
-- Devin requires an official account/API capability before live verification.
-- Antigravity does not yet have a reviewed scriptable usage interface.
+The adapter calls GitHub's personal premium-request billing endpoint through
+the official `gh` process. It needs a `gh` login with read access to the user's
+Plan data. The current machine has `gh` installed but not signed in, so the
+adapter was parser/process tested and correctly fails closed until login.
 
-These gaps do not block validation of the shared UI schema, but their adapters
-must be verified before the UI claims live support for them.
+### Devin
+
+The installed Devin desktop app was verified to cache a normalized plan record
+containing daily/weekly quota values and included usage counters. The adapter
+selects that exact record only, ignores all text/account metadata, and marks old
+cache data as cached in the widget.
+
+### Antigravity
+
+The installed Antigravity app was verified to cache an exact model-credit
+record separately from its OAuth record. The adapter decodes only the available
+credit integer and marks old cache data as cached. Antigravity's documented
+baseline model-quota view remains interactive and is not scraped.

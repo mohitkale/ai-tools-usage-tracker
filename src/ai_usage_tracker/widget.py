@@ -910,8 +910,10 @@ def run_widget(data_dir: Path | None = None, *, smoke_test: bool = False) -> Non
     if smoke_test:
         def finish_smoke_test() -> None:
             root.update_idletasks()
-            print(f"widget-rendered {root.winfo_width()}x{root.winfo_height()}")
+            size = f"widget-rendered {root.winfo_width()}x{root.winfo_height()}"
             root.destroy()
+            if sys.stdout is not None:
+                print(size)
 
         root.after(350, finish_smoke_test)
     root.mainloop()

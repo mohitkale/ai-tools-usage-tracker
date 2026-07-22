@@ -47,13 +47,17 @@ Windows Python installers normally include Tk. Ubuntu users can install the
 distribution's `python3-tk` package; Homebrew Python users can install the
 matching `python-tk@<version>` formula. Packaged builds include Python and Tk.
 
-The widget currently displays:
+The widget currently supports:
 
-- Cursor included usage, limit, percentage, remaining amount, and reset time.
+- Cursor total usage plus total, Auto, and API percentages and reset time.
 - Codex rate-limit windows, percentages, and reset times.
-- Claude Code windows captured by the existing official status-line hook.
-- GitHub Copilot, Devin, and Antigravity as visible planned providers with an
-  honest explanation instead of hiding them from the list.
+- Claude Code windows captured by the one-click official status-line hook.
+- GitHub Copilot premium-request totals through the official signed-in `gh` CLI.
+- Devin daily, weekly, and included usage from its exact normalized plan cache.
+- Antigravity's available AI credits from its exact local model-credit cache.
+
+Local cache cards are marked **Cached** after 30 minutes. Every provider remains
+disabled until it is explicitly connected.
 
 Its exact local data flow and retained settings are documented in
 [docs/widget-security.md](docs/widget-security.md).
@@ -98,8 +102,9 @@ credential or making a network request:
 claude-status-command | python3 scripts/usage_probe.py --pretty claude-status
 ```
 
-Configuring that official status-line command is intentionally left as a
-separate, explicit user action.
+The widget's Claude card can configure that official status-line command after
+an explicit confirmation. It preserves all unrelated settings and refuses to
+overwrite an existing different status line.
 
 For a future UI to consume Claude updates, use the capture command as the
 status-line target:
