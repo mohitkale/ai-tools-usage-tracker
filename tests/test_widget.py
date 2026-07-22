@@ -20,7 +20,7 @@ class WidgetFormattingTests(unittest.TestCase):
             display_name="Cursor",
             status=SnapshotStatus.AVAILABLE,
             source=DataSource.PRIVATE_PROVIDER_API,
-            collected_at=datetime(2026, 7, 22, tzinfo=UTC),
+            collected_at=datetime.now(UTC),
             windows=(
                 QuotaWindow(
                     id="billing_cycle",

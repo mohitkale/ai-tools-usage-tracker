@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 import importlib
 from pathlib import Path
 import queue
@@ -11,6 +11,7 @@ import threading
 from typing import Any, Mapping, Sequence
 
 from .model import ProviderSnapshot
+from .providers.antigravity import read_antigravity_usage
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
 from .providers.claude_setup import (
     ClaudeSetupError,
@@ -19,6 +20,7 @@ from .providers.claude_setup import (
 )
 from .providers.codex import read_rate_limits, resolve_codex_executable
 from .providers.cursor import read_cursor_usage
+from .providers.devin import read_devin_usage
 from .providers.github_copilot import read_copilot_usage
 from .storage import SnapshotStore
 from .widget_settings import SUPPORTED_PROVIDERS, WidgetSettings, WidgetSettingsStore
@@ -45,16 +47,16 @@ PROVIDER_DESCRIPTIONS = {
     "claude": "Reads only the normalized local status snapshot; no credential or network access.",
     "codex": "Starts the official local Codex process; Codex keeps control of its own login.",
     "github_copilot": "Starts the official GitHub CLI and requests only Copilot premium-request totals.",
-    "devin": "Usage adapter requires a reviewed account API capability before it can be enabled.",
-    "antigravity": "No reviewed scriptable usage interface is available yet.",
+    "devin": "Reads only Devin's normalized cached plan record; authentication records are excluded.",
+    "antigravity": "Reads only Antigravity's cached model-credit record; OAuth state is excluded.",
 }
 PROVIDER_SUMMARIES = {
     "cursor": "Monthly included usage and billing reset",
     "claude": "5-hour and 7-day limits from the status hook",
     "codex": "Rolling rate-limit windows from the local app",
     "github_copilot": "Monthly premium-request usage through your signed-in GitHub CLI",
-    "devin": "Account usage and allowance tracking",
-    "antigravity": "Local AI usage tracking",
+    "devin": "Daily, weekly, and included usage from Devin's local plan cache",
+    "antigravity": "Available AI credits from Antigravity's local cache",
 }
 PROVIDER_COLORS = {
     "cursor": "#7C8CFF",
@@ -167,6 +169,7 @@ def _format_reset(value: Any) -> str | None:
 def _format_amount(window: Mapping[str, Any], percent: float | None) -> str:
     used = _number(window.get("used"))
     limit = _number(window.get("limit"))
+    remaining = _number(window.get("remaining"))
     unit = window.get("unit")
     if unit == "currency_cents" and used is not None and limit is not None:
         return f"{_format_money(used)} of {_format_money(limit)}"
@@ -178,6 +181,8 @@ def _format_amount(window: Mapping[str, Any], percent: float | None) -> str:
         return f"{used:g} of {limit:g}"
     if used is not None:
         return f"{used:g} used"
+    if remaining is not None:
+        return f"{remaining:,.0f} remaining"
     if percent is not None:
         return f"{percent:.0f}% used"
     return "Usage available"
@@ -216,11 +221,27 @@ def display_from_snapshot(snapshot: ProviderSnapshot | Mapping[str, Any]) -> Pro
         )
     if not windows:
         return ProviderDisplay(provider_id, display_name, "no_data", "Waiting for data")
+    status_text = "Live"
+    collected_at = document.get("collected_at")
+    if isinstance(collected_at, str):
+        try:
+            parsed_collected_at = datetime.fromisoformat(
+                collected_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            parsed_collected_at = None
+        if (
+            parsed_collected_at is not None
+            and parsed_collected_at.tzinfo is not None
+            and datetime.now(UTC) - parsed_collected_at.astimezone(UTC)
+            > timedelta(minutes=30)
+        ):
+            status_text = "Cached"
     return ProviderDisplay(
         provider_id,
         display_name,
         "available",
-        "Live",
+        status_text,
         tuple(windows),
     )
 
@@ -281,6 +302,10 @@ class ProviderCollector:
                 return display_from_snapshot(read_cursor_usage())
             if provider_id == "github_copilot":
                 return display_from_snapshot(read_copilot_usage())
+            if provider_id == "devin":
+                return display_from_snapshot(read_devin_usage())
+            if provider_id == "antigravity":
+                return display_from_snapshot(read_antigravity_usage())
         except Exception:
             # UI errors are intentionally generic. Provider exceptions can contain
             # local paths or unreviewed payload fragments and are never displayed.
@@ -495,6 +520,10 @@ class UsageWidget:
             return "Could not refresh. Your saved provider session was not changed."
         if display.status == "no_data" and display.provider_id == "claude":
             return "Enable the Claude status-line capture to begin receiving usage."
+        if display.status == "no_data" and display.provider_id == "devin":
+            return "Open Devin once to refresh its normalized local plan cache."
+        if display.status == "no_data" and display.provider_id == "antigravity":
+            return "Open Antigravity's usage/settings view to refresh its local cache."
         if display.status == "no_data":
             return "The provider returned no supported usage measurements."
         return PROVIDER_SUMMARIES[display.provider_id]
@@ -754,7 +783,7 @@ class UsageWidget:
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("440x580")
+        dialog.geometry("440x700")
 
         self.tk.Label(
             dialog,
@@ -804,23 +833,6 @@ class UsageWidget:
                 fg=self.MUTED,
                 font=("TkDefaultFont", 7),
             ).pack(anchor="w", padx=13, pady=(0, 8))
-
-        planned = self.tk.Frame(dialog, bg=self.SURFACE)
-        planned.pack(fill="x", padx=20, pady=(11, 0))
-        self.tk.Label(
-            planned,
-            text="COMING LATER",
-            bg=self.SURFACE,
-            fg=self.FAINT,
-            font=("TkDefaultFont", 7, "bold"),
-        ).pack(anchor="w", padx=11, pady=(8, 3))
-        self.tk.Label(
-            planned,
-            text="Devin  ·  Antigravity",
-            bg=self.SURFACE,
-            fg=self.MUTED,
-            font=("TkDefaultFont", 8),
-        ).pack(anchor="w", padx=11, pady=(0, 9))
 
         preferences = self.tk.Frame(dialog, bg=self.BG)
         preferences.pack(fill="x", padx=20, pady=(14, 0))

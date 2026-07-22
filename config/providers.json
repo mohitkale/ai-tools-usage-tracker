@@ -46,16 +46,16 @@
     {
       "id": "devin",
       "display_name": "Devin",
-      "stability": "planned",
+      "stability": "experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "provider_network", "credential_reference"],
-      "credential_access": "dedicated_least_privilege_token",
-      "network_hosts": ["api.devin.ai"],
+      "permissions": ["local_metadata", "local_payload"],
+      "credential_access": "none",
+      "network_hosts": [],
       "discovery": {
         "executables": [],
         "paths": []
       },
-      "notes": "Will use an official API only when the account plan exposes usage data."
+      "notes": "Reads only windsurf.settings.cachedPlanInfo from Devin's local state database in read-only mode; auth and session records are never selected."
     },
     {
       "id": "cursor",
@@ -74,16 +74,16 @@
     {
       "id": "antigravity",
       "display_name": "Antigravity",
-      "stability": "planned",
+      "stability": "experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata"],
+      "permissions": ["local_metadata", "local_payload"],
       "credential_access": "none",
       "network_hosts": [],
       "discovery": {
         "executables": ["antigravity"],
         "paths": []
       },
-      "notes": "Only a documented usage command or payload will be accepted as a stable source."
+      "notes": "Reads only antigravityUnifiedStateSync.modelCredits from the local state database in read-only mode; the OAuth record is never selected."
     }
   ]
 }
