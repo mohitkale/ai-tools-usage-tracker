@@ -52,12 +52,12 @@ PROVIDER_DESCRIPTIONS = {
     "antigravity": "Reads only Antigravity's cached model-credit record; OAuth state is excluded.",
 }
 PROVIDER_SUMMARIES = {
-    "cursor": "Monthly included usage and billing reset",
-    "claude": "Plan limits on Pro/Max, or live session context on the free tier",
-    "codex": "Rolling rate-limit windows from the local app",
-    "github_copilot": "Monthly premium-request usage through your signed-in GitHub CLI",
-    "devin": "Daily, weekly, and included usage from Devin's local plan cache",
-    "antigravity": "Available AI credits from Antigravity's local cache",
+    "cursor": "Live billing-cycle usage",
+    "claude": "Plan limits or session context",
+    "codex": "Rolling usage windows",
+    "github_copilot": "Monthly premium requests",
+    "devin": "Quota and included usage",
+    "antigravity": "Available AI credits",
 }
 PROVIDER_COLORS = {
     "cursor": "#7C8CFF",
@@ -252,7 +252,7 @@ def disabled_display(provider_id: str) -> ProviderDisplay:
         provider_id,
         PROVIDER_NAMES[provider_id],
         "ready",
-        "Ready",
+        "Off",
     )
 
 
@@ -324,18 +324,19 @@ class ProviderCollector:
 
 
 class UsageWidget:
-    BG = "#090D18"
-    SURFACE = "#101725"
-    CARD = "#131B2B"
-    CARD_HOVER = "#182237"
-    CARD_BORDER = "#222E45"
-    TEXT = "#F4F7FC"
-    MUTED = "#8D9AB0"
-    FAINT = "#5F6C82"
-    ACCENT = "#8391FF"
-    GREEN = "#4BD6A2"
-    AMBER = "#F2B84B"
-    TRACK = "#263147"
+    BG = "#0A0E14"
+    SURFACE = "#111721"
+    CARD = "#141B26"
+    CARD_HOVER = "#1A2330"
+    CARD_BORDER = "#273140"
+    TEXT = "#F2F5F8"
+    MUTED = "#98A4B3"
+    FAINT = "#667282"
+    ACCENT = "#7D86F7"
+    GREEN = "#54D6A0"
+    AMBER = "#F3BC5B"
+    RED = "#F17B82"
+    TRACK = "#293344"
 
     def __init__(
         self,
@@ -352,6 +353,13 @@ class UsageWidget:
         self.messagebox = messagebox
         self.settings_store = settings_store
         self.collector = collector
+        self.font_family = (
+            "SF Pro Text"
+            if sys.platform == "darwin"
+            else "Segoe UI"
+            if sys.platform == "win32"
+            else "DejaVu Sans"
+        )
         try:
             self.settings = settings_store.load()
         except (OSError, ValueError):
@@ -382,60 +390,85 @@ class UsageWidget:
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
-        self.root.geometry("420x650")
-        self.root.minsize(420, 560)
+        self.root.geometry("472x620")
+        self.root.minsize(472, 560)
+        if sys.platform == "darwin":
+            try:
+                self.root.tk.call(
+                    "tk::unsupported::MacWindowStyle",
+                    "style",
+                    self.root._w,
+                    "utility",
+                    "closeBox",
+                )
+            except self.tk.TclError:
+                pass
+
+    def _font(self, size: int, weight: str = "normal") -> tuple[str, int, str]:
+        return (self.font_family, size, weight)
 
     def _build_layout(self) -> None:
         header = self.tk.Frame(self.root, bg=self.BG)
-        header.pack(fill="x", padx=18, pady=(16, 12))
+        header.pack(fill="x", padx=16, pady=(13, 10))
         brand = self.tk.Canvas(
             header,
-            width=34,
-            height=34,
+            width=28,
+            height=28,
             bg=self.BG,
             highlightthickness=0,
             borderwidth=0,
         )
-        brand.pack(side="left", padx=(0, 10))
-        brand.create_oval(2, 2, 32, 32, fill=self.ACCENT, outline="")
-        brand.create_text(17, 17, text="AI", fill="#FFFFFF", font=("TkDefaultFont", 9, "bold"))
+        brand.pack(side="left", padx=(0, 9))
+        brand.create_oval(2, 2, 26, 26, fill=self.ACCENT, outline="")
+        brand.create_text(14, 14, text="A", fill="#FFFFFF", font=self._font(9, "bold"))
         title_group = self.tk.Frame(header, bg=self.BG)
         title_group.pack(side="left")
         self.tk.Label(
             title_group,
-            text="Usage Monitor",
+            text="AI Usage",
             bg=self.BG,
             fg=self.TEXT,
-            font=("TkDefaultFont", 15, "bold"),
+            font=self._font(14, "bold"),
         ).pack(anchor="w")
         self.tk.Label(
             title_group,
             textvariable=self.updated_text,
             bg=self.BG,
             fg=self.MUTED,
-            font=("TkDefaultFont", 8),
-        ).pack(anchor="w", pady=(1, 0))
+            font=self._font(8),
+        ).pack(anchor="w")
         controls = self.tk.Frame(header, bg=self.BG)
         controls.pack(side="right")
-        self._button(controls, "↻", self.refresh_all, compact=True).pack(
-            side="left", padx=(0, 6)
+        self._button(controls, "Refresh", self.refresh_all, compact=True).pack(
+            side="left", padx=(0, 5)
         )
-        self._button(controls, "Manage", self.open_settings).pack(side="left")
+        self._button(controls, "Settings", self.open_settings, compact=True).pack(
+            side="left"
+        )
+
+        self.tk.Frame(self.root, height=1, bg=self.CARD_BORDER).pack(fill="x")
 
         viewport = self.tk.Frame(self.root, bg=self.BG)
-        viewport.pack(fill="both", expand=True, padx=14)
+        viewport.pack(fill="both", expand=True, padx=(12, 8), pady=(7, 0))
         self.cards_canvas = self.tk.Canvas(
             viewport,
             bg=self.BG,
             highlightthickness=0,
             borderwidth=0,
         )
-        self.cards_scrollbar = self.ttk.Scrollbar(
+        self.cards_scrollbar = self.tk.Scrollbar(
             viewport,
             orient="vertical",
             command=self.cards_canvas.yview,
+            width=8,
+            bg=self.CARD_BORDER,
+            activebackground=self.MUTED,
+            troughcolor=self.BG,
+            borderwidth=0,
+            highlightthickness=0,
+            relief="flat",
         )
-        self.cards_scrollbar.pack(side="right", fill="y", padx=(5, 0))
+        self.cards_scrollbar.pack(side="right", fill="y", padx=(6, 0))
         self.cards_canvas.configure(yscrollcommand=self.cards_scrollbar.set)
         self.cards_canvas.pack(side="left", fill="both", expand=True)
         self.cards = self.tk.Frame(self.cards_canvas, bg=self.BG)
@@ -475,13 +508,31 @@ class UsageWidget:
         self.root.bind("<Home>", lambda _event: self.cards_canvas.yview_moveto(0))
         self.root.bind("<End>", lambda _event: self.cards_canvas.yview_moveto(1))
 
+        footer = self.tk.Frame(self.root, bg=self.BG)
+        footer.pack(fill="x", padx=16, pady=(6, 8))
+        privacy_dot = self.tk.Canvas(
+            footer,
+            width=8,
+            height=8,
+            bg=self.BG,
+            highlightthickness=0,
+        )
+        privacy_dot.pack(side="left", pady=2)
+        privacy_dot.create_oval(1, 1, 7, 7, fill=self.GREEN, outline="")
         self.tk.Label(
-            self.root,
-            text="ON DEVICE  ·  NO TELEMETRY",
+            footer,
+            text="Local only · no telemetry",
             bg=self.BG,
             fg=self.FAINT,
-            font=("TkDefaultFont", 7, "bold"),
-        ).pack(pady=(7, 11))
+            font=self._font(7),
+        ).pack(side="left", padx=(5, 0))
+        self.tk.Label(
+            footer,
+            text="6 providers",
+            bg=self.BG,
+            fg=self.FAINT,
+            font=self._font(7),
+        ).pack(side="right")
 
     def _button(
         self,
@@ -499,11 +550,13 @@ class UsageWidget:
             text=text,
             bg=background,
             fg=foreground,
-            font=("TkDefaultFont", 8 if compact else 9, "bold"),
-            padx=9 if compact else 11,
-            pady=6,
+            font=self._font(8 if compact else 9, "bold"),
+            padx=8 if compact else 10,
+            pady=4 if compact else 5,
             cursor="hand2",
-            highlightthickness=0,
+            highlightbackground=self.CARD_BORDER,
+            highlightcolor=self.ACCENT,
+            highlightthickness=1,
             takefocus=True,
         )
         button.bind("<Button-1>", lambda _event: command())
@@ -527,12 +580,14 @@ class UsageWidget:
 
     def _status_style(self, status: str) -> tuple[str, str]:
         if status == "available":
-            return "#15372E", self.GREEN
+            return "#18352D", self.GREEN
         if status == "ready":
-            return "#1D2844", self.ACCENT
-        if status in {"error", "no_data"}:
-            return "#3A2C17", self.AMBER
-        return "#202838", self.MUTED
+            return "#202936", self.MUTED
+        if status == "error":
+            return "#3B2328", self.RED
+        if status == "no_data":
+            return "#3A2D1B", self.AMBER
+        return "#202936", self.MUTED
 
     def _card_detail(self, display: ProviderDisplay) -> str:
         if display.status == "planned":
@@ -566,26 +621,29 @@ class UsageWidget:
             highlightbackground=self.CARD_BORDER,
             highlightthickness=1,
         )
-        card.pack(fill="x", pady=4)
+        card.pack(fill="x", pady=3)
+        self.tk.Frame(card, width=3, bg=PROVIDER_COLORS[display.provider_id]).pack(
+            side="left", fill="y"
+        )
         content = self.tk.Frame(card, bg=self.CARD)
-        content.pack(fill="x", padx=12, pady=(10, 9))
+        content.pack(side="left", fill="x", expand=True, padx=10, pady=8)
         icon = self.tk.Canvas(
             content,
-            width=32,
-            height=32,
+            width=27,
+            height=27,
             bg=self.CARD,
             highlightthickness=0,
             borderwidth=0,
         )
-        icon.pack(side="left", anchor="n", padx=(0, 10))
+        icon.pack(side="left", anchor="n", padx=(0, 9))
         provider_color = PROVIDER_COLORS[display.provider_id]
-        icon.create_oval(1, 1, 31, 31, fill=provider_color, outline="")
+        icon.create_oval(1, 1, 26, 26, fill=self.SURFACE, outline=provider_color)
         icon.create_text(
-            16,
-            16,
+            13.5,
+            13.5,
             text=PROVIDER_MARKS[display.provider_id],
-            fill="#FFFFFF",
-            font=("TkDefaultFont", 7, "bold"),
+            fill=provider_color,
+            font=self._font(7, "bold"),
         )
         body = self.tk.Frame(content, bg=self.CARD)
         body.pack(side="left", fill="x", expand=True)
@@ -596,7 +654,7 @@ class UsageWidget:
             text=display.display_name,
             bg=self.CARD,
             fg=self.TEXT,
-            font=("TkDefaultFont", 10, "bold"),
+            font=self._font(10, "bold"),
         ).pack(side="left")
         status_bg, status_color = self._status_style(display.status)
         self.tk.Label(
@@ -604,28 +662,28 @@ class UsageWidget:
             text=display.status_text,
             bg=status_bg,
             fg=status_color,
-            font=("TkDefaultFont", 7, "bold"),
-            padx=7,
-            pady=2,
+            font=self._font(7, "bold"),
+            padx=6,
+            pady=1,
         ).pack(side="right")
 
         if not display.windows:
             detail_row = self.tk.Frame(body, bg=self.CARD)
-            detail_row.pack(fill="x", pady=(5, 0))
+            detail_row.pack(fill="x", pady=(3, 0))
             self.tk.Label(
                 detail_row,
                 text=self._card_detail(display),
                 bg=self.CARD,
                 fg=self.MUTED,
-                font=("TkDefaultFont", 8),
+                font=self._font(8),
                 justify="left",
                 anchor="w",
-                wraplength=255,
+                wraplength=315,
             ).pack(side="left", fill="x", expand=True)
             if display.status == "ready":
                 self._button(
                     detail_row,
-                    "Connect",
+                    "Enable",
                     lambda provider_id=display.provider_id: self.connect_provider(
                         provider_id
                     ),
@@ -653,48 +711,56 @@ class UsageWidget:
                 ).pack(side="right", padx=(8, 0))
             return
 
-        for index, window in enumerate(display.windows):
+        reset_texts: list[str] = []
+        for window in display.windows:
+            if window.reset_text and window.reset_text not in reset_texts:
+                reset_texts.append(window.reset_text)
+
+        for window in display.windows:
             row = self.tk.Frame(body, bg=self.CARD)
-            row.pack(fill="x", pady=(7, 0 if index == len(display.windows) - 1 else 2))
-            labels = self.tk.Frame(row, bg=self.CARD)
-            labels.pack(fill="x")
+            row.pack(fill="x", pady=(5, 0))
+            row.columnconfigure(1, weight=1)
             self.tk.Label(
-                labels,
+                row,
                 text=window.label,
                 bg=self.CARD,
                 fg=self.MUTED,
-                font=("TkDefaultFont", 7),
-            ).pack(side="left")
-            self.tk.Label(
-                labels,
-                text=window.amount_text,
-                bg=self.CARD,
-                fg=self.TEXT,
-                font=("TkDefaultFont", 8, "bold"),
-            ).pack(side="right")
+                font=self._font(7),
+                anchor="w",
+                width=13,
+            ).grid(row=0, column=0, sticky="w")
             if window.used_percent is not None:
                 bar = self.tk.Canvas(
                     row,
-                    height=5,
+                    height=4,
                     bg=self.CARD,
                     highlightthickness=0,
                     borderwidth=0,
                 )
-                bar.pack(fill="x", pady=(4, 2))
+                bar.grid(row=0, column=1, sticky="ew", padx=(6, 10))
                 bar.update_idletasks()
-                width = max(bar.winfo_width(), 285)
-                bar.create_rectangle(0, 0, width, 5, fill=self.TRACK, outline="")
+                width = max(bar.winfo_width(), 110)
+                bar.create_rectangle(0, 0, width, 4, fill=self.TRACK, outline="")
                 fill = width * window.used_percent / 100
                 color = self.AMBER if window.used_percent >= 90 else self.ACCENT
-                bar.create_rectangle(0, 0, fill, 5, fill=color, outline="")
-            if window.reset_text:
-                self.tk.Label(
-                    row,
-                    text=window.reset_text,
-                    bg=self.CARD,
-                    fg=self.MUTED,
-                    font=("TkDefaultFont", 7),
-                ).pack(anchor="e")
+                bar.create_rectangle(0, 0, fill, 4, fill=color, outline="")
+            self.tk.Label(
+                row,
+                text=window.amount_text,
+                bg=self.CARD,
+                fg=self.TEXT,
+                font=self._font(8, "bold"),
+                anchor="e",
+            ).grid(row=0, column=2, sticky="e")
+
+        if reset_texts:
+            self.tk.Label(
+                body,
+                text=" · ".join(reset_texts),
+                bg=self.CARD,
+                fg=self.FAINT,
+                font=self._font(7),
+            ).pack(anchor="e", pady=(4, 0))
 
     def refresh_all(self) -> None:
         if self.closed:
@@ -818,21 +884,21 @@ class UsageWidget:
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("440x700")
+        dialog.geometry("472x680")
 
         self.tk.Label(
             dialog,
             text="Manage providers",
             bg=self.BG,
             fg=self.TEXT,
-            font=("TkDefaultFont", 15, "bold"),
+            font=self._font(14, "bold"),
         ).pack(anchor="w", padx=20, pady=(18, 2))
         self.tk.Label(
             dialog,
             text="Each provider remains off until you explicitly enable it.",
             bg=self.BG,
             fg=self.MUTED,
-            font=("TkDefaultFont", 8),
+            font=self._font(8),
         ).pack(anchor="w", padx=20, pady=(0, 13))
 
         variables: dict[str, Any] = {}
@@ -854,7 +920,7 @@ class UsageWidget:
                 activebackground=self.CARD,
                 activeforeground=self.TEXT,
                 selectcolor=self.CARD_BORDER,
-                font=("TkDefaultFont", 9, "bold"),
+                font=self._font(9, "bold"),
                 anchor="w",
                 highlightthickness=0,
             )
@@ -866,7 +932,7 @@ class UsageWidget:
                 justify="left",
                 bg=self.CARD,
                 fg=self.MUTED,
-                font=("TkDefaultFont", 7),
+                font=self._font(7),
             ).pack(anchor="w", padx=13, pady=(0, 8))
 
         preferences = self.tk.Frame(dialog, bg=self.BG)

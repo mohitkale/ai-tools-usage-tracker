@@ -60,7 +60,7 @@ class WidgetFormattingTests(unittest.TestCase):
     def test_disabled_provider_has_no_access_side_effect(self) -> None:
         display = disabled_display("codex")
         self.assertEqual(display.status, "ready")
-        self.assertEqual(display.status_text, "Ready")
+        self.assertEqual(display.status_text, "Off")
 
     def test_all_requested_providers_have_visible_list_entries(self) -> None:
         self.assertEqual(
@@ -74,7 +74,7 @@ class WidgetFormattingTests(unittest.TestCase):
                 "antigravity",
             },
         )
-        self.assertEqual(disabled_display("github_copilot").status_text, "Ready")
+        self.assertEqual(disabled_display("github_copilot").status_text, "Off")
 
 
 class WidgetCollectorTests(unittest.TestCase):
