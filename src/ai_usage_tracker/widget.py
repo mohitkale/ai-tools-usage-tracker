@@ -14,19 +14,56 @@ from .model import ProviderSnapshot
 from .providers.codex import read_rate_limits, resolve_codex_executable
 from .providers.cursor import read_cursor_usage
 from .storage import SnapshotStore
-from .widget_settings import WidgetSettings, WidgetSettingsStore
+from .widget_settings import SUPPORTED_PROVIDERS, WidgetSettings, WidgetSettingsStore
 
 
-PROVIDER_ORDER = ("claude", "codex", "cursor")
+PROVIDER_ORDER = (
+    "cursor",
+    "claude",
+    "codex",
+    "github_copilot",
+    "devin",
+    "antigravity",
+)
 PROVIDER_NAMES = {
+    "cursor": "Cursor",
     "claude": "Claude Code",
     "codex": "Codex",
-    "cursor": "Cursor",
+    "github_copilot": "GitHub Copilot",
+    "devin": "Devin",
+    "antigravity": "Antigravity",
 }
 PROVIDER_DESCRIPTIONS = {
+    "cursor": "Reads one exact Cursor session record and sends it only to Cursor's usage RPC.",
     "claude": "Reads only the normalized local status snapshot; no credential or network access.",
     "codex": "Starts the official local Codex process; Codex keeps control of its own login.",
-    "cursor": "Reads one exact Cursor session record and sends it only to Cursor's usage RPC.",
+    "github_copilot": "Usage adapter is waiting for a reviewed official individual-account source.",
+    "devin": "Usage adapter requires a reviewed account API capability before it can be enabled.",
+    "antigravity": "No reviewed scriptable usage interface is available yet.",
+}
+PROVIDER_SUMMARIES = {
+    "cursor": "Monthly included usage and billing reset",
+    "claude": "5-hour and 7-day limits from the status hook",
+    "codex": "Rolling rate-limit windows from the local app",
+    "github_copilot": "Individual Copilot quota tracking",
+    "devin": "Account usage and allowance tracking",
+    "antigravity": "Local AI usage tracking",
+}
+PROVIDER_COLORS = {
+    "cursor": "#7C8CFF",
+    "claude": "#D97757",
+    "codex": "#26B98A",
+    "github_copilot": "#A78BFA",
+    "devin": "#4F9CF9",
+    "antigravity": "#F2B84B",
+}
+PROVIDER_MARKS = {
+    "cursor": "C",
+    "claude": "A",
+    "codex": "O",
+    "github_copilot": "GH",
+    "devin": "D",
+    "antigravity": "AG",
 }
 
 
@@ -179,8 +216,17 @@ def disabled_display(provider_id: str) -> ProviderDisplay:
     return ProviderDisplay(
         provider_id,
         PROVIDER_NAMES[provider_id],
-        "disabled",
-        "Not enabled",
+        "ready",
+        "Ready",
+    )
+
+
+def planned_display(provider_id: str) -> ProviderDisplay:
+    return ProviderDisplay(
+        provider_id,
+        PROVIDER_NAMES[provider_id],
+        "planned",
+        "Planned",
     )
 
 
@@ -198,7 +244,7 @@ def error_display(provider_id: str) -> ProviderDisplay:
         provider_id,
         PROVIDER_NAMES[provider_id],
         "error",
-        "Refresh failed",
+        "Needs attention",
     )
 
 
@@ -212,7 +258,7 @@ class ProviderCollector:
                 snapshot = self.snapshot_store.load("claude")
                 if snapshot is None:
                     return ProviderDisplay(
-                        "claude", "Claude Code", "no_data", "Waiting for status snapshot"
+                        "claude", "Claude Code", "no_data", "Setup required"
                     )
                 return display_from_snapshot(snapshot)
             if provider_id == "codex":
@@ -228,15 +274,18 @@ class ProviderCollector:
 
 
 class UsageWidget:
-    BG = "#0B1020"
-    CARD = "#151C2F"
-    CARD_BORDER = "#26324D"
-    TEXT = "#F7F9FC"
-    MUTED = "#94A3B8"
-    ACCENT = "#7C8CFF"
-    GREEN = "#41D19A"
-    AMBER = "#F5B942"
-    TRACK = "#27334C"
+    BG = "#090D18"
+    SURFACE = "#101725"
+    CARD = "#131B2B"
+    CARD_HOVER = "#182237"
+    CARD_BORDER = "#222E45"
+    TEXT = "#F4F7FC"
+    MUTED = "#8D9AB0"
+    FAINT = "#5F6C82"
+    ACCENT = "#8391FF"
+    GREEN = "#4BD6A2"
+    AMBER = "#F2B84B"
+    TRACK = "#263147"
 
     def __init__(
         self,
@@ -262,9 +311,14 @@ class UsageWidget:
         self.closed = False
         self.refresh_job: str | None = None
         self.displays = {
-            provider_id: disabled_display(provider_id) for provider_id in PROVIDER_ORDER
+            provider_id: (
+                disabled_display(provider_id)
+                if provider_id in SUPPORTED_PROVIDERS
+                else planned_display(provider_id)
+            )
+            for provider_id in PROVIDER_ORDER
         }
-        self.updated_text = tk.StringVar(value="Nothing accessed yet")
+        self.updated_text = tk.StringVar(value="All provider access is opt-in")
 
         self._configure_window()
         self._build_layout()
@@ -278,66 +332,157 @@ class UsageWidget:
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
-        self.root.geometry("380x520")
-        self.root.minsize(380, 420)
+        self.root.geometry("420x650")
+        self.root.minsize(420, 560)
 
     def _build_layout(self) -> None:
         header = self.tk.Frame(self.root, bg=self.BG)
-        header.pack(fill="x", padx=18, pady=(16, 10))
+        header.pack(fill="x", padx=18, pady=(16, 12))
+        brand = self.tk.Canvas(
+            header,
+            width=34,
+            height=34,
+            bg=self.BG,
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        brand.pack(side="left", padx=(0, 10))
+        brand.create_oval(2, 2, 32, 32, fill=self.ACCENT, outline="")
+        brand.create_text(17, 17, text="AI", fill="#FFFFFF", font=("TkDefaultFont", 9, "bold"))
         title_group = self.tk.Frame(header, bg=self.BG)
         title_group.pack(side="left")
         self.tk.Label(
             title_group,
-            text="AI Usage",
+            text="Usage Monitor",
             bg=self.BG,
             fg=self.TEXT,
-            font=("TkDefaultFont", 18, "bold"),
+            font=("TkDefaultFont", 15, "bold"),
         ).pack(anchor="w")
         self.tk.Label(
             title_group,
             textvariable=self.updated_text,
             bg=self.BG,
             fg=self.MUTED,
-            font=("TkDefaultFont", 9),
-        ).pack(anchor="w", pady=(2, 0))
+            font=("TkDefaultFont", 8),
+        ).pack(anchor="w", pady=(1, 0))
         controls = self.tk.Frame(header, bg=self.BG)
         controls.pack(side="right")
-        self._button(controls, "Refresh", self.refresh_all).pack(side="left", padx=(0, 6))
-        self._button(controls, "Settings", self.open_settings).pack(side="left")
+        self._button(controls, "↻", self.refresh_all, compact=True).pack(
+            side="left", padx=(0, 6)
+        )
+        self._button(controls, "Manage", self.open_settings).pack(side="left")
 
-        self.cards = self.tk.Frame(self.root, bg=self.BG)
-        self.cards.pack(fill="both", expand=True, padx=14)
+        viewport = self.tk.Frame(self.root, bg=self.BG)
+        viewport.pack(fill="both", expand=True, padx=14)
+        self.cards_canvas = self.tk.Canvas(
+            viewport,
+            bg=self.BG,
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        self.cards_canvas.pack(fill="both", expand=True)
+        self.cards = self.tk.Frame(self.cards_canvas, bg=self.BG)
+        self.cards_window = self.cards_canvas.create_window(
+            (0, 0), window=self.cards, anchor="nw"
+        )
+        self.cards.bind(
+            "<Configure>",
+            lambda _event: self.cards_canvas.configure(
+                scrollregion=self.cards_canvas.bbox("all")
+            ),
+        )
+        self.cards_canvas.bind(
+            "<Configure>",
+            lambda event: self.cards_canvas.itemconfigure(
+                self.cards_window, width=event.width
+            ),
+        )
+        self.root.bind(
+            "<MouseWheel>",
+            lambda event: self.cards_canvas.yview_scroll(
+                -1 if event.delta > 0 else 1, "units"
+            ),
+        )
+        self.root.bind(
+            "<Button-4>", lambda _event: self.cards_canvas.yview_scroll(-1, "units")
+        )
+        self.root.bind(
+            "<Button-5>", lambda _event: self.cards_canvas.yview_scroll(1, "units")
+        )
 
         self.tk.Label(
             self.root,
-            text="Local only  •  No telemetry",
+            text="ON DEVICE  ·  NO TELEMETRY",
             bg=self.BG,
-            fg=self.MUTED,
-            font=("TkDefaultFont", 8),
-        ).pack(pady=(8, 12))
+            fg=self.FAINT,
+            font=("TkDefaultFont", 7, "bold"),
+        ).pack(pady=(7, 11))
 
-    def _button(self, parent: Any, text: str, command: Any) -> Any:
-        return self.tk.Button(
+    def _button(
+        self,
+        parent: Any,
+        text: str,
+        command: Any,
+        *,
+        accent: bool = False,
+        compact: bool = False,
+    ) -> Any:
+        background = self.ACCENT if accent else self.SURFACE
+        foreground = "#FFFFFF" if accent else self.TEXT
+        button = self.tk.Label(
             parent,
             text=text,
-            command=command,
-            bg=self.CARD,
-            fg=self.TEXT,
-            activebackground=self.CARD_BORDER,
-            activeforeground=self.TEXT,
-            relief="flat",
-            borderwidth=0,
-            padx=10,
+            bg=background,
+            fg=foreground,
+            font=("TkDefaultFont", 8 if compact else 9, "bold"),
+            padx=9 if compact else 11,
             pady=6,
             cursor="hand2",
             highlightthickness=0,
+            takefocus=True,
         )
+        button.bind("<Button-1>", lambda _event: command())
+        button.bind("<Return>", lambda _event: command())
+        button.bind("<space>", lambda _event: command())
+        hover = self.CARD_HOVER if not accent else "#6979EE"
+        button.bind("<Enter>", lambda _event: button.configure(bg=hover))
+        button.bind("<Leave>", lambda _event: button.configure(bg=background))
+        return button
 
     def _render_cards(self) -> None:
         for child in self.cards.winfo_children():
             child.destroy()
         for provider_id in PROVIDER_ORDER:
             self._render_card(self.displays[provider_id])
+        self.root.after_idle(
+            lambda: self.cards_canvas.configure(
+                scrollregion=self.cards_canvas.bbox("all")
+            )
+        )
+
+    def _status_style(self, status: str) -> tuple[str, str]:
+        if status == "available":
+            return "#15372E", self.GREEN
+        if status == "ready":
+            return "#1D2844", self.ACCENT
+        if status in {"error", "no_data"}:
+            return "#3A2C17", self.AMBER
+        return "#202838", self.MUTED
+
+    def _card_detail(self, display: ProviderDisplay) -> str:
+        if display.status == "planned":
+            return PROVIDER_DESCRIPTIONS[display.provider_id]
+        if display.status == "ready":
+            return PROVIDER_SUMMARIES[display.provider_id]
+        if display.status == "loading":
+            return "Checking the latest usage…"
+        if display.status == "error":
+            return "Could not refresh. Your saved provider session was not changed."
+        if display.status == "no_data" and display.provider_id == "claude":
+            return "Enable the Claude status-line capture to begin receiving usage."
+        if display.status == "no_data":
+            return "The provider returned no supported usage measurements."
+        return PROVIDER_SUMMARIES[display.provider_id]
 
     def _render_card(self, display: ProviderDisplay) -> None:
         card = self.tk.Frame(
@@ -346,44 +491,84 @@ class UsageWidget:
             highlightbackground=self.CARD_BORDER,
             highlightthickness=1,
         )
-        card.pack(fill="x", pady=5)
-        heading = self.tk.Frame(card, bg=self.CARD)
-        heading.pack(fill="x", padx=13, pady=(10, 6))
+        card.pack(fill="x", pady=4)
+        content = self.tk.Frame(card, bg=self.CARD)
+        content.pack(fill="x", padx=12, pady=(10, 9))
+        icon = self.tk.Canvas(
+            content,
+            width=32,
+            height=32,
+            bg=self.CARD,
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        icon.pack(side="left", anchor="n", padx=(0, 10))
+        provider_color = PROVIDER_COLORS[display.provider_id]
+        icon.create_oval(1, 1, 31, 31, fill=provider_color, outline="")
+        icon.create_text(
+            16,
+            16,
+            text=PROVIDER_MARKS[display.provider_id],
+            fill="#FFFFFF",
+            font=("TkDefaultFont", 7, "bold"),
+        )
+        body = self.tk.Frame(content, bg=self.CARD)
+        body.pack(side="left", fill="x", expand=True)
+        heading = self.tk.Frame(body, bg=self.CARD)
+        heading.pack(fill="x")
         self.tk.Label(
             heading,
             text=display.display_name,
             bg=self.CARD,
             fg=self.TEXT,
-            font=("TkDefaultFont", 11, "bold"),
+            font=("TkDefaultFont", 10, "bold"),
         ).pack(side="left")
-        status_color = self.GREEN if display.status == "available" else self.MUTED
-        if display.status == "error":
-            status_color = self.AMBER
+        status_bg, status_color = self._status_style(display.status)
         self.tk.Label(
             heading,
             text=display.status_text,
-            bg=self.CARD,
+            bg=status_bg,
             fg=status_color,
-            font=("TkDefaultFont", 9),
+            font=("TkDefaultFont", 7, "bold"),
+            padx=7,
+            pady=2,
         ).pack(side="right")
 
         if not display.windows:
-            detail = "Open Settings to enable" if display.status == "disabled" else ""
-            if detail:
-                self.tk.Label(
-                    card,
-                    text=detail,
-                    bg=self.CARD,
-                    fg=self.MUTED,
-                    font=("TkDefaultFont", 8),
-                ).pack(anchor="w", padx=13, pady=(0, 10))
-            else:
-                self.tk.Frame(card, bg=self.CARD, height=5).pack()
+            detail_row = self.tk.Frame(body, bg=self.CARD)
+            detail_row.pack(fill="x", pady=(5, 0))
+            self.tk.Label(
+                detail_row,
+                text=self._card_detail(display),
+                bg=self.CARD,
+                fg=self.MUTED,
+                font=("TkDefaultFont", 8),
+                justify="left",
+                anchor="w",
+                wraplength=255,
+            ).pack(side="left", fill="x", expand=True)
+            if display.status == "ready":
+                self._button(
+                    detail_row,
+                    "Connect",
+                    lambda provider_id=display.provider_id: self.connect_provider(
+                        provider_id
+                    ),
+                    accent=True,
+                    compact=True,
+                ).pack(side="right", padx=(8, 0))
+            elif display.status == "error":
+                self._button(
+                    detail_row,
+                    "Retry",
+                    self.refresh_all,
+                    compact=True,
+                ).pack(side="right", padx=(8, 0))
             return
 
         for index, window in enumerate(display.windows):
-            row = self.tk.Frame(card, bg=self.CARD)
-            row.pack(fill="x", padx=13, pady=(0, 9 if index == len(display.windows) - 1 else 7))
+            row = self.tk.Frame(body, bg=self.CARD)
+            row.pack(fill="x", pady=(7, 0 if index == len(display.windows) - 1 else 2))
             labels = self.tk.Frame(row, bg=self.CARD)
             labels.pack(fill="x")
             self.tk.Label(
@@ -391,37 +576,37 @@ class UsageWidget:
                 text=window.label,
                 bg=self.CARD,
                 fg=self.MUTED,
-                font=("TkDefaultFont", 8),
+                font=("TkDefaultFont", 7),
             ).pack(side="left")
             self.tk.Label(
                 labels,
                 text=window.amount_text,
                 bg=self.CARD,
                 fg=self.TEXT,
-                font=("TkDefaultFont", 9, "bold"),
+                font=("TkDefaultFont", 8, "bold"),
             ).pack(side="right")
             if window.used_percent is not None:
                 bar = self.tk.Canvas(
                     row,
-                    height=6,
+                    height=5,
                     bg=self.CARD,
                     highlightthickness=0,
                     borderwidth=0,
                 )
-                bar.pack(fill="x", pady=(5, 3))
+                bar.pack(fill="x", pady=(4, 2))
                 bar.update_idletasks()
-                width = max(bar.winfo_width(), 320)
-                bar.create_rectangle(0, 0, width, 6, fill=self.TRACK, outline="")
+                width = max(bar.winfo_width(), 285)
+                bar.create_rectangle(0, 0, width, 5, fill=self.TRACK, outline="")
                 fill = width * window.used_percent / 100
                 color = self.AMBER if window.used_percent >= 90 else self.ACCENT
-                bar.create_rectangle(0, 0, fill, 6, fill=color, outline="")
+                bar.create_rectangle(0, 0, fill, 5, fill=color, outline="")
             if window.reset_text:
                 self.tk.Label(
                     row,
                     text=window.reset_text,
                     bg=self.CARD,
                     fg=self.MUTED,
-                    font=("TkDefaultFont", 8),
+                    font=("TkDefaultFont", 7),
                 ).pack(anchor="e")
 
     def refresh_all(self) -> None:
@@ -429,6 +614,9 @@ class UsageWidget:
             return
         enabled = self.settings.enabled_providers
         for provider_id in PROVIDER_ORDER:
+            if provider_id not in SUPPORTED_PROVIDERS:
+                self.displays[provider_id] = planned_display(provider_id)
+                continue
             if provider_id not in enabled:
                 self.displays[provider_id] = disabled_display(provider_id)
                 continue
@@ -473,6 +661,40 @@ class UsageWidget:
         milliseconds = self.settings.refresh_minutes * 60 * 1000
         self.refresh_job = self.root.after(milliseconds, self.refresh_all)
 
+    def _save_settings(self, settings: WidgetSettings, parent: Any) -> bool:
+        try:
+            self.settings_store.save(settings)
+        except (OSError, ValueError):
+            self.messagebox.showerror(
+                "Settings not saved",
+                "The local settings file could not be written safely.",
+                parent=parent,
+            )
+            return False
+        self.settings = settings
+        self.root.attributes("-topmost", settings.always_on_top)
+        return True
+
+    def connect_provider(self, provider_id: str) -> None:
+        if provider_id not in SUPPORTED_PROVIDERS:
+            return
+        approved = self.messagebox.askyesno(
+            f"Enable {PROVIDER_NAMES[provider_id]}?",
+            PROVIDER_DESCRIPTIONS[provider_id]
+            + "\n\nOnly normalized usage details appear in the widget. "
+            "You can disable this provider at any time.",
+            parent=self.root,
+        )
+        if not approved:
+            return
+        settings = WidgetSettings(
+            enabled_providers=self.settings.enabled_providers | {provider_id},
+            refresh_minutes=self.settings.refresh_minutes,
+            always_on_top=self.settings.always_on_top,
+        )
+        if self._save_settings(settings, self.root):
+            self.refresh_all()
+
     def open_settings(self) -> None:
         dialog = self.tk.Toplevel(self.root)
         dialog.title("AI Usage Settings")
@@ -480,25 +702,27 @@ class UsageWidget:
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("430x475")
+        dialog.geometry("440x580")
 
         self.tk.Label(
             dialog,
-            text="Provider access",
+            text="Manage providers",
             bg=self.BG,
             fg=self.TEXT,
-            font=("TkDefaultFont", 16, "bold"),
-        ).pack(anchor="w", padx=20, pady=(18, 3))
+            font=("TkDefaultFont", 15, "bold"),
+        ).pack(anchor="w", padx=20, pady=(18, 2))
         self.tk.Label(
             dialog,
-            text="Nothing is accessed until you enable it here.",
+            text="Each provider remains off until you explicitly enable it.",
             bg=self.BG,
             fg=self.MUTED,
-            font=("TkDefaultFont", 9),
-        ).pack(anchor="w", padx=20, pady=(0, 12))
+            font=("TkDefaultFont", 8),
+        ).pack(anchor="w", padx=20, pady=(0, 13))
 
         variables: dict[str, Any] = {}
         for provider_id in PROVIDER_ORDER:
+            if provider_id not in SUPPORTED_PROVIDERS:
+                continue
             block = self.tk.Frame(dialog, bg=self.CARD)
             block.pack(fill="x", padx=20, pady=4)
             variable = self.tk.BooleanVar(
@@ -514,11 +738,11 @@ class UsageWidget:
                 activebackground=self.CARD,
                 activeforeground=self.TEXT,
                 selectcolor=self.CARD_BORDER,
-                font=("TkDefaultFont", 10, "bold"),
+                font=("TkDefaultFont", 9, "bold"),
                 anchor="w",
                 highlightthickness=0,
             )
-            checkbox.pack(fill="x", padx=10, pady=(8, 2))
+            checkbox.pack(fill="x", padx=10, pady=(7, 1))
             self.tk.Label(
                 block,
                 text=PROVIDER_DESCRIPTIONS[provider_id],
@@ -526,11 +750,28 @@ class UsageWidget:
                 justify="left",
                 bg=self.CARD,
                 fg=self.MUTED,
-                font=("TkDefaultFont", 8),
-            ).pack(anchor="w", padx=13, pady=(0, 9))
+                font=("TkDefaultFont", 7),
+            ).pack(anchor="w", padx=13, pady=(0, 8))
+
+        planned = self.tk.Frame(dialog, bg=self.SURFACE)
+        planned.pack(fill="x", padx=20, pady=(11, 0))
+        self.tk.Label(
+            planned,
+            text="COMING LATER",
+            bg=self.SURFACE,
+            fg=self.FAINT,
+            font=("TkDefaultFont", 7, "bold"),
+        ).pack(anchor="w", padx=11, pady=(8, 3))
+        self.tk.Label(
+            planned,
+            text="GitHub Copilot  ·  Devin  ·  Antigravity",
+            bg=self.SURFACE,
+            fg=self.MUTED,
+            font=("TkDefaultFont", 8),
+        ).pack(anchor="w", padx=11, pady=(0, 9))
 
         preferences = self.tk.Frame(dialog, bg=self.BG)
-        preferences.pack(fill="x", padx=20, pady=(12, 0))
+        preferences.pack(fill="x", padx=20, pady=(14, 0))
         topmost = self.tk.BooleanVar(value=self.settings.always_on_top)
         self.tk.Checkbutton(
             preferences,
@@ -578,22 +819,12 @@ class UsageWidget:
                 refresh_minutes=int(interval.get()),
                 always_on_top=bool(topmost.get()),
             )
-            try:
-                self.settings_store.save(settings)
-            except (OSError, ValueError):
-                self.messagebox.showerror(
-                    "Settings not saved",
-                    "The local settings file could not be written safely.",
-                    parent=dialog,
-                )
+            if not self._save_settings(settings, dialog):
                 return
-            self.settings = settings
-            self.root.attributes("-topmost", settings.always_on_top)
             dialog.destroy()
             self.refresh_all()
 
-        save_button = self._button(actions, "Save & refresh", save)
-        save_button.configure(bg=self.ACCENT)
+        save_button = self._button(actions, "Save & refresh", save, accent=True)
         save_button.pack(side="right", padx=(0, 8))
 
     def close(self) -> None:

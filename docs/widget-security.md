@@ -6,8 +6,9 @@ The desktop widget starts with every provider disabled. Before the user enables
 a provider, opening the widget does not read a provider database or credential,
 start a provider process, or make a provider network request.
 
-The Settings dialog is the permission boundary. It explains each adapter's
-access and stores only these non-sensitive preferences:
+The Settings dialog and the per-card Connect confirmation are the permission
+boundary. Both explain an adapter's access before enabling it and store only
+these non-sensitive preferences:
 
 - Enabled provider identifiers.
 - Refresh interval.
@@ -25,7 +26,7 @@ normalized `ProviderSnapshot` fields through an in-memory queue. Refreshes do
 not persist Cursor or Codex responses. Claude uses the already-normalized local
 snapshot produced by its explicit status-line capture hook.
 
-Unexpected collector exceptions are replaced with the generic `Refresh failed`
+Unexpected collector exceptions are replaced with a generic `Needs attention`
 status. Exception messages, response bodies, local paths, and account metadata
 are not rendered. Disabling a provider prevents future scheduled collection;
 results from an in-flight refresh are discarded if the provider was disabled
@@ -40,6 +41,9 @@ before it completed.
 - **Cursor:** reads only `cursorAuth/accessToken` from Cursor's SQLite state in
   read-only/query-only mode and sends an empty usage request only to the pinned
   `api2.cursor.sh` endpoint.
+- **GitHub Copilot, Devin, and Antigravity:** remain visible in the provider
+  list as planned integrations, but have no enable action and perform no local
+  or network access.
 
 No adapter enumerates the operating-system keychain. The widget has no
 telemetry, crash uploader, remote configuration, automatic update client, or

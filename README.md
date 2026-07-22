@@ -37,9 +37,10 @@ python3 scripts/usage_widget.py
 
 The first launch is default-deny: it does not read a provider session, start a
 provider process, or make a network request. Open **Settings**, review each
-provider's permission description, and explicitly enable only the collectors
-you want. Enabled providers refresh in background threads so the window remains
-responsive. The always-on-top behavior and refresh interval are configurable.
+provider's permission description, or use a provider card's **Connect** action
+to grant access directly. Enabled providers refresh in background threads so
+the window remains responsive. The always-on-top behavior and refresh interval
+are configurable.
 
 The source launcher requires Python 3.11 or newer with Tk support. Official
 Windows Python installers normally include Tk. Ubuntu users can install the
@@ -51,6 +52,8 @@ The widget currently displays:
 - Cursor included usage, limit, percentage, remaining amount, and reset time.
 - Codex rate-limit windows, percentages, and reset times.
 - Claude Code windows captured by the existing official status-line hook.
+- GitHub Copilot, Devin, and Antigravity as visible planned providers with an
+  honest explanation instead of hiding them from the list.
 
 Its exact local data flow and retained settings are documented in
 [docs/widget-security.md](docs/widget-security.md).

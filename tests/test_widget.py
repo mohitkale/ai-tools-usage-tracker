@@ -5,9 +5,11 @@ import unittest
 
 from ai_usage_tracker.model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus
 from ai_usage_tracker.widget import (
+    PROVIDER_ORDER,
     ProviderCollector,
     disabled_display,
     display_from_snapshot,
+    planned_display,
 )
 
 
@@ -56,8 +58,22 @@ class WidgetFormattingTests(unittest.TestCase):
 
     def test_disabled_provider_has_no_access_side_effect(self) -> None:
         display = disabled_display("codex")
-        self.assertEqual(display.status, "disabled")
-        self.assertEqual(display.status_text, "Not enabled")
+        self.assertEqual(display.status, "ready")
+        self.assertEqual(display.status_text, "Ready")
+
+    def test_all_requested_providers_have_visible_list_entries(self) -> None:
+        self.assertEqual(
+            set(PROVIDER_ORDER),
+            {
+                "claude",
+                "codex",
+                "cursor",
+                "github_copilot",
+                "devin",
+                "antigravity",
+            },
+        )
+        self.assertEqual(planned_display("github_copilot").status_text, "Planned")
 
 
 class WidgetCollectorTests(unittest.TestCase):
@@ -68,7 +84,7 @@ class WidgetCollectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             display = ProviderCollector(Path(directory)).collect("claude")
         self.assertEqual(display.status, "no_data")
-        self.assertEqual(display.status_text, "Waiting for status snapshot")
+        self.assertEqual(display.status_text, "Setup required")
 
 
 if __name__ == "__main__":
