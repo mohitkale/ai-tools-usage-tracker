@@ -49,11 +49,10 @@ raw exception messages are never passed through to the interface.
   `api2.cursor.sh` endpoint.
 - **GitHub Copilot:** starts the official `gh` process and requests the personal
   premium-request usage report. Authentication and GitHub network access remain
-  inside `gh`; the widget does not receive its token or retain the username. If
-  the user explicitly confirms Sign in, the widget starts `gh`'s official web
-  flow with a one-time clipboard code. GitHub CLI controls credential storage
-  and warns that it may use its configuration file when an operating-system
-  credential store is unavailable.
+  inside `gh`; the widget does not receive its token or retain the username. The
+  widget can copy a fixed `gh auth login` command, but deliberately does not run
+  a hidden interactive login process. The user runs and observes authentication
+  in their terminal, where GitHub CLI explains and controls credential storage.
 - **Devin:** selects only `windsurf.settings.cachedPlanInfo` from Devin's local
   SQLite database in read-only/query-only mode. Auth and session rows are not
   selected.

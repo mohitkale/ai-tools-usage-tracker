@@ -24,8 +24,8 @@ from .providers.codex import read_rate_limits, resolve_codex_executable
 from .providers.cursor import read_cursor_usage
 from .providers.devin import read_devin_usage
 from .providers.github_copilot import (
+    GITHUB_LOGIN_COMMAND,
     GitHubCopilotProbeError,
-    login_github_cli,
     read_copilot_usage,
     safe_error_guidance,
     safe_error_status,
@@ -38,9 +38,9 @@ PROVIDER_ORDER = (
     "cursor",
     "claude",
     "codex",
-    "github_copilot",
     "devin",
     "antigravity",
+    "github_copilot",
 )
 PROVIDER_NAMES = {
     "cursor": "Cursor",
@@ -978,7 +978,7 @@ class UsageWidget:
                 )
                 self._button(
                     detail_row,
-                    "Sign in" if requires_github_sign_in else "Retry",
+                    "Copy login" if requires_github_sign_in else "Retry",
                     self.sign_in_github
                     if requires_github_sign_in
                     else lambda provider_id=display.provider_id: self.retry_provider(
@@ -1106,50 +1106,28 @@ class UsageWidget:
         )
 
     def sign_in_github(self) -> None:
-        if self.closed or "github_copilot" in self.in_progress:
+        if self.closed:
             return
-        approved = self.messagebox.askyesno(
-            "Sign in to GitHub CLI?",
-            "Open GitHub CLI's official browser sign-in?\n\n"
-            "GitHub CLI will copy a one-time code to the clipboard, open github.com, "
-            "request its user scope for the personal Plan usage endpoint, and store "
-            "the resulting session in the operating-system credential store when "
-            "available. This tracker never receives or stores the token.\n\n"
-            "On systems without secure credential storage, GitHub CLI may fall back "
-            "to its own configuration file. Continue?",
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(GITHUB_LOGIN_COMMAND)
+            self.root.update_idletasks()
+        except self.tk.TclError:
+            self.messagebox.showerror(
+                "Could not copy GitHub login command",
+                "Open a terminal and run:\n\n" + GITHUB_LOGIN_COMMAND,
+                parent=self.root,
+            )
+            return
+        self.updated_text.set("GitHub login command copied")
+        self.messagebox.showinfo(
+            "GitHub login command copied",
+            "Paste the copied command into a terminal and complete GitHub's browser "
+            "authorization. GitHub CLI controls credential storage; this tracker "
+            "never receives the token.\n\nReturn here and click the refresh icon when "
+            "sign-in is complete.",
             parent=self.root,
         )
-        if not approved:
-            return
-        self.in_progress.add("github_copilot")
-        self.displays["github_copilot"] = loading_display(
-            "github_copilot",
-            "Signing in…",
-            "Complete the GitHub authorization in your browser. The one-time code "
-            "has been copied to the clipboard.",
-        )
-        self.updated_text.set("Waiting for GitHub sign-in…")
-        self._render_cards()
-        self.root.update_idletasks()
-        thread = threading.Thread(
-            target=self._sign_in_github_in_background,
-            daemon=True,
-            name="github-sign-in",
-        )
-        thread.start()
-
-    def _sign_in_github_in_background(self) -> None:
-        try:
-            login_github_cli()
-        except GitHubCopilotProbeError as exc:
-            display = error_display(
-                "github_copilot",
-                safe_error_guidance(exc),
-                safe_error_status(exc),
-            )
-        else:
-            display = self.collector.collect("github_copilot")
-        self.results.put(display)
 
     def _launch_provider_collection(self, provider_id: str) -> None:
         if self.closed or provider_id not in self.settings.enabled_providers:
