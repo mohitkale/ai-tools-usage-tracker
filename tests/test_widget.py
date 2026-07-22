@@ -18,6 +18,29 @@ from ai_usage_tracker.widget import (
 
 
 class WidgetFormattingTests(unittest.TestCase):
+    def test_scroll_bindtag_is_prioritized_for_every_card_widget(self) -> None:
+        class FakeWidget:
+            def __init__(self, children=()) -> None:
+                self.tags = ("widget", "class", "all")
+                self.children = children
+
+            def bindtags(self, value=None):
+                if value is not None:
+                    self.tags = value
+                return self.tags
+
+            def winfo_children(self):
+                return self.children
+
+        child = FakeWidget()
+        parent = FakeWidget((child,))
+        widget = UsageWidget.__new__(UsageWidget)
+
+        widget._bind_mousewheel_tree(parent)
+
+        self.assertEqual(parent.tags[0], UsageWidget.SCROLL_BINDTAG)
+        self.assertEqual(child.tags[0], UsageWidget.SCROLL_BINDTAG)
+
     def test_manual_refresh_cooldown_avoids_duplicate_collection(self) -> None:
         widget = UsageWidget.__new__(UsageWidget)
         widget.closed = False

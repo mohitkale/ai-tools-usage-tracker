@@ -340,6 +340,7 @@ class UsageWidget:
     TRACK = "#293344"
     SCROLL_TRACK = "#0F151E"
     SCROLL_THUMB = "#3A4657"
+    SCROLL_BINDTAG = "MohitsAIUsageTrackerScroll"
     MANUAL_REFRESH_COOLDOWN_SECONDS = 15.0
 
     def __init__(
@@ -394,7 +395,7 @@ class UsageWidget:
         self.root.after(200, lambda: self.refresh_all(force=True))
 
     def _configure_window(self) -> None:
-        self.root.title("Mohit's AI Aggregator")
+        self.root.title("Mohit's AI Usage Tracker")
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
@@ -423,22 +424,11 @@ class UsageWidget:
     def _build_layout(self) -> None:
         header = self.tk.Frame(self.root, bg=self.BG)
         header.pack(fill="x", padx=16, pady=(13, 10))
-        brand = self.tk.Canvas(
-            header,
-            width=28,
-            height=28,
-            bg=self.BG,
-            highlightthickness=0,
-            borderwidth=0,
-        )
-        brand.pack(side="left", padx=(0, 9))
-        brand.create_oval(2, 2, 26, 26, fill=self.ACCENT, outline="")
-        brand.create_text(14, 14, text="M", fill="#FFFFFF", font=self._font(9, "bold"))
         title_group = self.tk.Frame(header, bg=self.BG)
         title_group.pack(side="left")
         self.tk.Label(
             title_group,
-            text="Mohit's AI Aggregator",
+            text="Mohit's AI Usage Tracker",
             bg=self.BG,
             fg=self.TEXT,
             font=self._font(14, "bold"),
@@ -511,9 +501,17 @@ class UsageWidget:
                 self.cards_window, width=event.width
             ),
         )
-        self.root.bind_all("<MouseWheel>", self._on_mousewheel, add="+")
-        self.root.bind_all("<Button-4>", self._on_mousewheel, add="+")
-        self.root.bind_all("<Button-5>", self._on_mousewheel, add="+")
+        self.root.bind_class(
+            self.SCROLL_BINDTAG, "<MouseWheel>", self._on_mousewheel
+        )
+        self.root.bind_class(
+            self.SCROLL_BINDTAG, "<Button-4>", self._on_mousewheel
+        )
+        self.root.bind_class(
+            self.SCROLL_BINDTAG, "<Button-5>", self._on_mousewheel
+        )
+        self._bind_mousewheel_tree(self.cards_canvas)
+        self._bind_mousewheel_tree(self.cards_scrollbar)
         self.root.bind(
             "<Prior>", lambda _event: self.cards_canvas.yview_scroll(-1, "pages")
         )
@@ -693,6 +691,13 @@ class UsageWidget:
         self.cards_canvas.yview_scroll(units, "units")
         return "break"
 
+    def _bind_mousewheel_tree(self, widget: Any) -> None:
+        tags = tuple(widget.bindtags())
+        if self.SCROLL_BINDTAG not in tags:
+            widget.bindtags((self.SCROLL_BINDTAG, *tags))
+        for child in widget.winfo_children():
+            self._bind_mousewheel_tree(child)
+
     def _button(
         self,
         parent: Any,
@@ -761,6 +766,7 @@ class UsageWidget:
         def finish_layout() -> None:
             self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
             self.cards_canvas.yview_moveto(previous_top)
+            self._bind_mousewheel_tree(self.cards_canvas)
 
         self.root.after_idle(finish_layout)
 
@@ -847,15 +853,16 @@ class UsageWidget:
             highlightbackground=self.CARD_BORDER,
             highlightthickness=1,
         )
-        card.pack(fill="x", pady=3)
+        card.pack(fill="x", pady=2)
         rail = self.tk.Canvas(
             card,
             width=4,
+            height=1,
             bg=self.CARD,
             highlightthickness=0,
             borderwidth=0,
         )
-        rail.pack(side="left", fill="y", padx=(2, 0), pady=3)
+        rail.pack(side="left", fill="y", padx=(2, 0), pady=2)
 
         def draw_rail(event: Any) -> None:
             rail.delete("provider-rail")
@@ -873,7 +880,7 @@ class UsageWidget:
 
         rail.bind("<Configure>", draw_rail)
         content = self.tk.Frame(card, bg=self.CARD)
-        content.pack(side="left", fill="x", expand=True, padx=10, pady=8)
+        content.pack(side="left", fill="x", expand=True, padx=10, pady=7)
         icon = self.tk.Canvas(
             content,
             width=27,
@@ -1143,7 +1150,7 @@ class UsageWidget:
 
     def open_settings(self) -> None:
         dialog = self.tk.Toplevel(self.root)
-        dialog.title("Mohit's AI Aggregator Settings")
+        dialog.title("Mohit's AI Usage Tracker Settings")
         dialog.configure(bg=self.BG)
         dialog.resizable(False, False)
         dialog.transient(self.root)
