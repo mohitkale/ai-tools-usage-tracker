@@ -12,9 +12,11 @@ dependencies = []
 [project.scripts]
 ai-usage-probe = "ai_usage_tracker.cli:main"
 
+[project.gui-scripts]
+ai-usage-widget = "ai_usage_tracker.widget:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
