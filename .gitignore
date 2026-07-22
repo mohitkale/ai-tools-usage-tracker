@@ -8,6 +8,7 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.cache/
 build/
 dist/
 *.egg-info/
@@ -37,4 +38,3 @@ auth.json
 Thumbs.db
 .idea/
 .vscode/
-

@@ -1,8 +1,8 @@
 # AI Tools Usage Tracker
 
-A local-first, cross-platform usage aggregator for AI developer tools. The
-project is currently building and validating a security-focused collector CLI
-before any desktop UI is introduced.
+A local-first, cross-platform usage aggregator for AI developer tools. It now
+includes a compact always-on-top Python widget backed by the security-focused
+collector.
 
 ## Current scope
 
@@ -27,11 +27,56 @@ session record only after explicit command-line consent.
 See [SECURITY.md](SECURITY.md) and [docs/threat-model.md](docs/threat-model.md)
 before adding a provider integration.
 
-## Development status
+## Desktop widget
 
-No UI or packaging dependencies are installed yet. The initial collector is
-intentionally based on the Python standard library so its behavior is easy to
-inspect and test.
+Launch the widget from a source checkout:
+
+```bash
+python3 scripts/usage_widget.py
+```
+
+The first launch is default-deny: it does not read a provider session, start a
+provider process, or make a network request. Open **Settings**, review each
+provider's permission description, and explicitly enable only the collectors
+you want. Enabled providers refresh in background threads so the window remains
+responsive. The always-on-top behavior and refresh interval are configurable.
+
+The source launcher requires Python 3.11 or newer with Tk support. Official
+Windows Python installers normally include Tk. Ubuntu users can install the
+distribution's `python3-tk` package; Homebrew Python users can install the
+matching `python-tk@<version>` formula. Packaged builds include Python and Tk.
+
+The widget currently displays:
+
+- Cursor included usage, limit, percentage, remaining amount, and reset time.
+- Codex rate-limit windows, percentages, and reset times.
+- Claude Code windows captured by the existing official status-line hook.
+
+Its exact local data flow and retained settings are documented in
+[docs/widget-security.md](docs/widget-security.md).
+
+## Packaging
+
+PyInstaller is a pinned build-only dependency; the application itself has no
+third-party Python runtime dependency. Build on the operating system and CPU
+architecture you intend to distribute for:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-build.txt
+.venv/bin/python scripts/build_app.py
+```
+
+On Windows, replace `.venv/bin/python` with `.venv\Scripts\python`. The default
+output is an inspectable one-folder bundle under `dist/`; pass `--onefile` for a
+single executable. PyInstaller does not cross-compile, so Windows, Ubuntu, and
+macOS artifacts must each be produced on that target platform. Signing and
+notarization remain a release step.
+
+## Collector CLI
+
+The collector is intentionally based on the Python standard library so its
+behavior is easy to inspect and test.
 
 Run the credential-free probes directly from a checkout:
 
