@@ -25,6 +25,7 @@ from .providers.cursor import read_cursor_usage
 from .providers.devin import read_devin_usage
 from .providers.github_copilot import (
     GitHubCopilotProbeError,
+    login_github_cli,
     read_copilot_usage,
     safe_error_guidance,
     safe_error_status,
@@ -272,12 +273,17 @@ def planned_display(provider_id: str) -> ProviderDisplay:
     )
 
 
-def loading_display(provider_id: str) -> ProviderDisplay:
+def loading_display(
+    provider_id: str,
+    status_text: str = "Refreshing…",
+    detail: str | None = None,
+) -> ProviderDisplay:
     return ProviderDisplay(
         provider_id,
         PROVIDER_NAMES[provider_id],
         "loading",
-        "Refreshing…",
+        status_text,
+        detail=detail,
     )
 
 
@@ -845,7 +851,7 @@ class UsageWidget:
         if display.status == "ready":
             return PROVIDER_SUMMARIES[display.provider_id]
         if display.status == "loading":
-            return "Checking the latest usage…"
+            return display.detail or "Checking the latest usage…"
         if display.status == "error":
             return display.detail or (
                 "Could not refresh. Your saved provider session was not changed."
@@ -966,12 +972,19 @@ class UsageWidget:
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
             elif display.status == "error":
+                requires_github_sign_in = (
+                    display.provider_id == "github_copilot"
+                    and display.status_text == "Sign-in required"
+                )
                 self._button(
                     detail_row,
-                    "Retry",
-                    lambda provider_id=display.provider_id: self.retry_provider(
+                    "Sign in" if requires_github_sign_in else "Retry",
+                    self.sign_in_github
+                    if requires_github_sign_in
+                    else lambda provider_id=display.provider_id: self.retry_provider(
                         provider_id
                     ),
+                    accent=requires_github_sign_in,
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
             elif (
@@ -1091,6 +1104,52 @@ class UsageWidget:
             self.RETRY_FEEDBACK_DELAY_MS,
             lambda: self._launch_provider_collection(provider_id),
         )
+
+    def sign_in_github(self) -> None:
+        if self.closed or "github_copilot" in self.in_progress:
+            return
+        approved = self.messagebox.askyesno(
+            "Sign in to GitHub CLI?",
+            "Open GitHub CLI's official browser sign-in?\n\n"
+            "GitHub CLI will copy a one-time code to the clipboard, open github.com, "
+            "request its user scope for the personal Plan usage endpoint, and store "
+            "the resulting session in the operating-system credential store when "
+            "available. This tracker never receives or stores the token.\n\n"
+            "On systems without secure credential storage, GitHub CLI may fall back "
+            "to its own configuration file. Continue?",
+            parent=self.root,
+        )
+        if not approved:
+            return
+        self.in_progress.add("github_copilot")
+        self.displays["github_copilot"] = loading_display(
+            "github_copilot",
+            "Signing in…",
+            "Complete the GitHub authorization in your browser. The one-time code "
+            "has been copied to the clipboard.",
+        )
+        self.updated_text.set("Waiting for GitHub sign-in…")
+        self._render_cards()
+        self.root.update_idletasks()
+        thread = threading.Thread(
+            target=self._sign_in_github_in_background,
+            daemon=True,
+            name="github-sign-in",
+        )
+        thread.start()
+
+    def _sign_in_github_in_background(self) -> None:
+        try:
+            login_github_cli()
+        except GitHubCopilotProbeError as exc:
+            display = error_display(
+                "github_copilot",
+                safe_error_guidance(exc),
+                safe_error_status(exc),
+            )
+        else:
+            display = self.collector.collect("github_copilot")
+        self.results.put(display)
 
     def _launch_provider_collection(self, provider_id: str) -> None:
         if self.closed or provider_id not in self.settings.enabled_providers:

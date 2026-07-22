@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+import subprocess
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ from ai_usage_tracker.model import DataSource, SnapshotStatus
 from ai_usage_tracker.providers.github_copilot import (
     GitHubCopilotProbeError,
     _require_gh_authentication,
+    login_github_cli,
     _read_login,
     parse_premium_request_usage,
     read_copilot_usage,
@@ -65,6 +67,23 @@ class GitHubCopilotParserTests(unittest.TestCase):
 
 
 class GitHubCopilotProcessTests(unittest.TestCase):
+    def test_browser_login_is_delegated_to_gh_without_token_io(self) -> None:
+        with patch(
+            "ai_usage_tracker.providers.github_copilot.subprocess.run",
+            return_value=SimpleNamespace(returncode=0),
+        ) as runner:
+            login_github_cli(Path("/usr/bin/gh"))
+
+        arguments = runner.call_args.args[0]
+        self.assertEqual(arguments[1:3], ("auth", "login"))
+        self.assertIn("--web", arguments)
+        self.assertIn("--clipboard", arguments)
+        self.assertIn("user", arguments)
+        self.assertNotIn("token", " ".join(arguments).casefold())
+        self.assertEqual(runner.call_args.kwargs["stdin"], subprocess.DEVNULL)
+        self.assertEqual(runner.call_args.kwargs["stdout"], subprocess.DEVNULL)
+        self.assertEqual(runner.call_args.kwargs["stderr"], subprocess.DEVNULL)
+
     def test_requires_an_authenticated_github_cli_session(self) -> None:
         with patch(
             "ai_usage_tracker.providers.github_copilot.subprocess.run",
@@ -88,7 +107,7 @@ class GitHubCopilotProcessTests(unittest.TestCase):
         error = GitHubCopilotProbeError("GitHub CLI is not signed in")
 
         self.assertEqual(safe_error_status(error), "Sign-in required")
-        self.assertIn("gh auth login", safe_error_guidance(error))
+        self.assertIn("Use Sign in", safe_error_guidance(error))
 
     def test_validates_login_before_using_it_in_a_path(self) -> None:
         with patch(

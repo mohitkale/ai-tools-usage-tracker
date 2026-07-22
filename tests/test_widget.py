@@ -20,6 +20,28 @@ from ai_usage_tracker.widget import (
 
 
 class WidgetFormattingTests(unittest.TestCase):
+    def test_github_sign_in_requires_confirmation_and_starts_in_background(self) -> None:
+        updates = []
+        widget = UsageWidget.__new__(UsageWidget)
+        widget.closed = False
+        widget.in_progress = set()
+        widget.displays = {"github_copilot": error_display("github_copilot")}
+        widget.updated_text = SimpleNamespace(set=updates.append)
+        widget.messagebox = SimpleNamespace(askyesno=lambda *args, **kwargs: True)
+        widget.root = SimpleNamespace(update_idletasks=lambda: None)
+
+        with patch.object(UsageWidget, "_render_cards") as render, patch(
+            "ai_usage_tracker.widget.threading.Thread"
+        ) as thread:
+            widget.sign_in_github()
+
+        display = widget.displays["github_copilot"]
+        self.assertEqual(display.status_text, "Signing in…")
+        self.assertIn("github_copilot", widget.in_progress)
+        self.assertEqual(updates, ["Waiting for GitHub sign-in…"])
+        render.assert_called_once_with()
+        thread.return_value.start.assert_called_once_with()
+
     def test_retry_bypasses_global_cooldown_and_shows_immediate_feedback(self) -> None:
         scheduled = []
         updates = []
@@ -171,7 +193,7 @@ class WidgetCollectorTests(unittest.TestCase):
             display = ProviderCollector().collect("github_copilot")
 
         self.assertEqual(display.status_text, "Sign-in required")
-        self.assertIn("gh auth login", display.detail)
+        self.assertIn("Use Sign in", display.detail)
 
     def test_unexpected_github_failure_does_not_reach_the_ui(self) -> None:
         with patch(

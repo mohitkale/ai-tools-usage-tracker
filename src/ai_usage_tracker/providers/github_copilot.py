@@ -16,6 +16,7 @@ from ..model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus, u
 GITHUB_API_VERSION = "2026-03-10"
 MAX_GH_OUTPUT_BYTES = 2 * 1024 * 1024
 GH_TIMEOUT_SECONDS = 20
+GH_LOGIN_TIMEOUT_SECONDS = 10 * 60
 _LOGIN_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\Z")
 
 
@@ -26,8 +27,12 @@ class GitHubCopilotProbeError(RuntimeError):
 _SAFE_ERROR_GUIDANCE = {
     "GitHub CLI was not found": "Install GitHub CLI and sign in, then retry.",
     "GitHub CLI is not signed in": (
-        "GitHub CLI is not signed in. Run `gh auth login --hostname github.com`, "
-        "then retry."
+        "GitHub CLI is not signed in. Use Sign in to open GitHub's official "
+        "browser flow."
+    ),
+    "GitHub CLI sign-in did not complete": (
+        "GitHub CLI sign-in did not complete. Try Sign in again or run "
+        "`gh auth login --hostname github.com`."
     ),
     "GitHub CLI could not be resolved": (
         "The GitHub CLI installation could not be used. Reinstall it, then retry."
@@ -54,6 +59,7 @@ _SAFE_ERROR_STATUSES = {
     "GitHub CLI could not be resolved": "CLI required",
     "GitHub CLI is not executable": "CLI required",
     "GitHub CLI is not signed in": "Sign-in required",
+    "GitHub CLI sign-in did not complete": "Sign-in required",
 }
 
 
@@ -163,6 +169,37 @@ def _require_gh_authentication(executable: Path) -> None:
         raise GitHubCopilotProbeError("GitHub CLI usage request failed") from exc
     if result.returncode != 0:
         raise GitHubCopilotProbeError("GitHub CLI is not signed in")
+
+
+def login_github_cli(executable: Path | None = None) -> None:
+    """Run GitHub CLI's official browser flow without receiving its token."""
+    gh = executable or resolve_gh_executable()
+    try:
+        result = subprocess.run(
+            (
+                str(gh),
+                "auth",
+                "login",
+                "--hostname",
+                "github.com",
+                "--web",
+                "--clipboard",
+                "--git-protocol",
+                "https",
+                "--scopes",
+                "user",
+            ),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_minimal_environment(),
+            timeout=GH_LOGIN_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GitHubCopilotProbeError("GitHub CLI sign-in did not complete") from exc
+    if result.returncode != 0:
+        raise GitHubCopilotProbeError("GitHub CLI sign-in did not complete")
 
 
 def _read_login(executable: Path) -> str:
