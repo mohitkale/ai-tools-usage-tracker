@@ -23,7 +23,11 @@ from .providers.claude_setup import (
 from .providers.codex import read_rate_limits, resolve_codex_executable
 from .providers.cursor import read_cursor_usage
 from .providers.devin import read_devin_usage
-from .providers.github_copilot import read_copilot_usage
+from .providers.github_copilot import (
+    GitHubCopilotProbeError,
+    read_copilot_usage,
+    safe_error_guidance,
+)
 from .storage import SnapshotStore
 from .widget_settings import SUPPORTED_PROVIDERS, WidgetSettings, WidgetSettingsStore
 
@@ -143,6 +147,7 @@ class ProviderDisplay:
     status: str
     status_text: str
     windows: tuple[WindowDisplay, ...] = ()
+    detail: str | None = None
 
 
 def _number(value: Any) -> float | None:
@@ -275,12 +280,13 @@ def loading_display(provider_id: str) -> ProviderDisplay:
     )
 
 
-def error_display(provider_id: str) -> ProviderDisplay:
+def error_display(provider_id: str, detail: str | None = None) -> ProviderDisplay:
     return ProviderDisplay(
         provider_id,
         PROVIDER_NAMES[provider_id],
         "error",
         "Needs attention",
+        detail=detail,
     )
 
 
@@ -317,6 +323,8 @@ class ProviderCollector:
                 return display_from_snapshot(read_devin_usage())
             if provider_id == "antigravity":
                 return display_from_snapshot(read_antigravity_usage())
+        except GitHubCopilotProbeError as exc:
+            return error_display(provider_id, safe_error_guidance(exc))
         except Exception:
             # UI errors are intentionally generic. Provider exceptions can contain
             # local paths or unreviewed payload fragments and are never displayed.
@@ -342,6 +350,7 @@ class UsageWidget:
     SCROLL_THUMB = "#3A4657"
     SCROLL_BINDTAG = "MohitsAIUsageTrackerScroll"
     MANUAL_REFRESH_COOLDOWN_SECONDS = 15.0
+    RETRY_FEEDBACK_DELAY_MS = 250
 
     def __init__(
         self,
@@ -829,7 +838,9 @@ class UsageWidget:
         if display.status == "loading":
             return "Checking the latest usage…"
         if display.status == "error":
-            return "Could not refresh. Your saved provider session was not changed."
+            return display.detail or (
+                "Could not refresh. Your saved provider session was not changed."
+            )
         if display.status == "no_data" and display.provider_id == "claude":
             if display.status_text == "Setup required":
                 return "Enable the Claude Code status-line capture to begin receiving usage."
@@ -949,7 +960,9 @@ class UsageWidget:
                 self._button(
                     detail_row,
                     "Retry",
-                    self.refresh_all,
+                    lambda provider_id=display.provider_id: self.retry_provider(
+                        provider_id
+                    ),
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
             elif (
@@ -1043,18 +1056,44 @@ class UsageWidget:
             started = True
             if not self.displays[provider_id].windows:
                 self.displays[provider_id] = loading_display(provider_id)
-            thread = threading.Thread(
-                target=self._collect_in_background,
-                args=(provider_id,),
-                daemon=True,
-                name=f"usage-{provider_id}",
-            )
-            thread.start()
+            self._launch_provider_collection(provider_id)
         if started:
             self.last_refresh_started = now
             self.updated_text.set("Updating…")
         self._request_render()
         self._schedule_refresh()
+
+    def retry_provider(self, provider_id: str) -> None:
+        if (
+            self.closed
+            or provider_id not in SUPPORTED_PROVIDERS
+            or provider_id not in self.settings.enabled_providers
+        ):
+            return
+        if provider_id in self.in_progress:
+            self.updated_text.set(f"{PROVIDER_NAMES[provider_id]} is refreshing…")
+            return
+        self.in_progress.add(provider_id)
+        self.displays[provider_id] = loading_display(provider_id)
+        self.updated_text.set(f"Retrying {PROVIDER_NAMES[provider_id]}…")
+        self._render_cards()
+        self.root.update_idletasks()
+        self.root.after(
+            self.RETRY_FEEDBACK_DELAY_MS,
+            lambda: self._launch_provider_collection(provider_id),
+        )
+
+    def _launch_provider_collection(self, provider_id: str) -> None:
+        if self.closed or provider_id not in self.settings.enabled_providers:
+            self.in_progress.discard(provider_id)
+            return
+        thread = threading.Thread(
+            target=self._collect_in_background,
+            args=(provider_id,),
+            daemon=True,
+            name=f"usage-{provider_id}",
+        )
+        thread.start()
 
     def _collect_in_background(self, provider_id: str) -> None:
         self.results.put(self.collector.collect(provider_id))

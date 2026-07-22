@@ -7,17 +7,42 @@ import unittest
 from unittest.mock import patch
 
 from ai_usage_tracker.model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus
+from ai_usage_tracker.providers.github_copilot import GitHubCopilotProbeError
 from ai_usage_tracker.widget import (
     PROVIDER_ORDER,
     ProviderCollector,
     UsageWidget,
     disabled_display,
     display_from_snapshot,
+    error_display,
     planned_display,
 )
 
 
 class WidgetFormattingTests(unittest.TestCase):
+    def test_retry_bypasses_global_cooldown_and_shows_immediate_feedback(self) -> None:
+        scheduled = []
+        updates = []
+        widget = UsageWidget.__new__(UsageWidget)
+        widget.closed = False
+        widget.settings = SimpleNamespace(enabled_providers={"github_copilot"})
+        widget.in_progress = set()
+        widget.displays = {"github_copilot": error_display("github_copilot")}
+        widget.updated_text = SimpleNamespace(set=updates.append)
+        widget.root = SimpleNamespace(
+            after=lambda delay, callback: scheduled.append((delay, callback)),
+            update_idletasks=lambda: None,
+        )
+
+        with patch.object(UsageWidget, "_render_cards") as render:
+            widget.retry_provider("github_copilot")
+
+        self.assertEqual(widget.displays["github_copilot"].status, "loading")
+        self.assertIn("github_copilot", widget.in_progress)
+        self.assertEqual(updates, ["Retrying GitHub Copilot…"])
+        self.assertEqual(scheduled[0][0], UsageWidget.RETRY_FEEDBACK_DELAY_MS)
+        render.assert_called_once_with()
+
     def test_scroll_bindtag_is_prioritized_for_every_card_widget(self) -> None:
         class FakeWidget:
             def __init__(self, children=()) -> None:
@@ -128,6 +153,25 @@ class WidgetFormattingTests(unittest.TestCase):
 
 
 class WidgetCollectorTests(unittest.TestCase):
+    def test_known_github_failure_returns_static_safe_guidance(self) -> None:
+        with patch(
+            "ai_usage_tracker.widget.read_copilot_usage",
+            side_effect=GitHubCopilotProbeError("GitHub CLI was not found"),
+        ):
+            display = ProviderCollector().collect("github_copilot")
+
+        self.assertEqual(display.status, "error")
+        self.assertEqual(display.detail, "Install GitHub CLI and sign in, then retry.")
+
+    def test_unexpected_github_failure_does_not_reach_the_ui(self) -> None:
+        with patch(
+            "ai_usage_tracker.widget.read_copilot_usage",
+            side_effect=RuntimeError("CANARY_SECRET provider output"),
+        ):
+            display = ProviderCollector().collect("github_copilot")
+
+        self.assertNotIn("CANARY", repr(display))
+
     def test_missing_claude_snapshot_is_nonfatal(self) -> None:
         import tempfile
         from pathlib import Path

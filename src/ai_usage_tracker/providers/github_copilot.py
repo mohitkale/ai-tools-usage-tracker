@@ -23,6 +23,37 @@ class GitHubCopilotProbeError(RuntimeError):
     """A deliberately non-sensitive GitHub Copilot probe failure."""
 
 
+_SAFE_ERROR_GUIDANCE = {
+    "GitHub CLI was not found": "Install GitHub CLI and sign in, then retry.",
+    "GitHub CLI could not be resolved": (
+        "The GitHub CLI installation could not be used. Reinstall it, then retry."
+    ),
+    "GitHub CLI is not executable": (
+        "The GitHub CLI installation could not be used. Reinstall it, then retry."
+    ),
+    "GitHub CLI usage request failed": (
+        "GitHub CLI could not complete the request. Check connectivity and retry."
+    ),
+    "GitHub rejected the usage request; re-authenticate gh with Plan read access": (
+        "GitHub rejected the request. Re-authenticate GitHub CLI, then retry."
+    ),
+    "GitHub usage response exceeded the size limit": (
+        "GitHub returned an unexpectedly large response. Update the app before retrying."
+    ),
+    "GitHub returned an invalid account identifier": (
+        "GitHub CLI returned an invalid account response. Sign in again, then retry."
+    ),
+}
+
+
+def safe_error_guidance(error: GitHubCopilotProbeError) -> str:
+    """Map only exact reviewed failures to UI text; never render exception content."""
+    return _SAFE_ERROR_GUIDANCE.get(
+        str(error),
+        "GitHub Copilot usage could not be refreshed. Verify GitHub CLI sign-in and retry.",
+    )
+
+
 def resolve_gh_executable(explicit: str | None = None) -> Path:
     candidates = [explicit] if explicit else [
         shutil.which("gh"),

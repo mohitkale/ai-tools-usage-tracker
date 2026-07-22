@@ -33,6 +33,10 @@ are not rendered. Disabling a provider prevents future scheduled collection;
 results from an in-flight refresh are discarded if the provider was disabled
 before it completed.
 
+Reviewed provider failures may be mapped by exact match to static troubleshooting
+text. Unrecognized exception content is always replaced with generic guidance;
+raw exception messages are never passed through to the interface.
+
 ## Provider-specific access
 
 - **Claude Code:** reads only the normalized app-owned snapshot. With explicit

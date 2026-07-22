@@ -8,9 +8,11 @@ from unittest.mock import patch
 
 from ai_usage_tracker.model import DataSource, SnapshotStatus
 from ai_usage_tracker.providers.github_copilot import (
+    GitHubCopilotProbeError,
     _read_login,
     parse_premium_request_usage,
     read_copilot_usage,
+    safe_error_guidance,
 )
 
 
@@ -60,6 +62,15 @@ class GitHubCopilotParserTests(unittest.TestCase):
 
 
 class GitHubCopilotProcessTests(unittest.TestCase):
+    def test_error_guidance_uses_only_reviewed_exact_messages(self) -> None:
+        known = safe_error_guidance(GitHubCopilotProbeError("GitHub CLI was not found"))
+        unknown = safe_error_guidance(
+            GitHubCopilotProbeError("CANARY_SECRET provider output")
+        )
+
+        self.assertIn("Install GitHub CLI", known)
+        self.assertNotIn("CANARY", unknown)
+
     def test_validates_login_before_using_it_in_a_path(self) -> None:
         with patch(
             "ai_usage_tracker.providers.github_copilot._run_gh",
