@@ -3,254 +3,247 @@
 [![CI](https://github.com/mohitkale/ai-tools-usage-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/mohitkale/ai-tools-usage-tracker/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-A local-first, cross-platform usage aggregator for AI developer tools. It now
-includes a compact always-on-top Python widget backed by the security-focused
-collector.
+**One local-first desktop widget for your AI coding usage, quotas, and reset
+times.**
 
-> **Project status:** source preview. Provider interfaces marked private or
-> experimental can change without notice. Public binary releases are blocked
-> until the release gates in [the security audit](docs/security-audit.md) are
-> complete.
+Track Cursor, Codex, Claude Code, GitHub Copilot CLI, Devin, and Antigravity
+across macOS, Windows, and Linux. No telemetry. Existing credentials are never
+copied into or stored by the tracker.
 
-## Current scope
+<p align="center">
+  <img
+    src="docs/assets/dashboard.png"
+    alt="AI Tools Usage Tracker showing synthetic Cursor, Claude Code, and Codex quota data"
+    width="940"
+  />
+</p>
 
-- Detect supported tools without reading their credential files.
-- Normalize quota and usage information into a provider-independent schema.
-- Validate the schema with synthetic data and supported local interfaces.
-- Make every filesystem, process, credential, and network permission explicit.
+<p align="center">
+  <em>The real application rendered in its offline synthetic demo mode. No provider was accessed.</em>
+</p>
 
-The project does **not** enumerate an operating-system keychain, persist
-secrets, or send telemetry. The experimental Cursor probe reads one exact
-session record only after explicit command-line consent.
+If this saves you from checking six different usage screens,
+[star the repository](https://github.com/mohitkale/ai-tools-usage-tracker)
+and [request the provider](https://github.com/mohitkale/ai-tools-usage-tracker/issues/new?template=provider_request.yml)
+you want supported next.
 
-## Security defaults
+[Quick start](#quick-start) ·
+[Supported providers](#supported-providers) ·
+[Privacy model](#privacy-by-design) ·
+[Project status](#project-status)
 
-- All providers are default-deny until enabled by the user.
-- Undocumented or private integrations are disabled by default.
-- The collector stores normalized usage values only.
-- Network requests must use an adapter-specific official-host allowlist.
-- Cross-host redirects are rejected.
-- Logs and errors are tested against credential canaries.
+> **Source preview:** the source is ready for review and compatibility testing.
+> Public binary downloads are not available while signing, notarization, and
+> release-supply-chain work is completed.
 
-See [SECURITY.md](SECURITY.md) and [docs/threat-model.md](docs/threat-model.md)
-before adding a provider integration.
+## Why this exists
 
-## Desktop widget
+Every AI coding tool reports usage differently. Some expose rolling quota
+windows, some show spend, and others provide only local counters or cached
+credits. Checking several dashboards interrupts the work those tools are meant
+to accelerate.
 
-Launch the widget from a source checkout:
+AI Tools Usage Tracker brings the available signals into one compact,
+always-on-top view without sending your activity to another analytics service.
+
+## Who is this for?
+
+- Developers using several AI coding assistants.
+- Teams comparing quotas across subscriptions.
+- Heavy AI-tool users who regularly hit rolling limits.
+- Privacy-conscious users who do not want another hosted analytics dashboard.
+
+## What it gives you
+
+- One dashboard for multiple AI coding tools.
+- Usage, remaining allowance, and reset times where the provider exposes them.
+- Clear Live, Local, Cached, and Unavailable states.
+- A 340-pixel compact mode for an unobtrusive at-a-glance view.
+- Explicit permission controls for each provider.
+- Local normalized snapshots only—never raw provider responses.
+- No telemetry, analytics, remote configuration, or automatic updates.
+
+## Supported providers
+
+| Provider | What the tracker can show | Availability |
+| --- | --- | --- |
+| Cursor | Spend, Total/Auto/API usage, reset time | Live, experimental |
+| Codex | Rolling quota usage and reset times | Live |
+| Claude Code | Account limits or session context | Live via Claude Code status line |
+| GitHub Copilot CLI | AI credits consumed on this device | Local |
+| Devin | Daily, weekly, and included usage | Cached |
+| Antigravity | Remaining AI credits | Cached |
+
+Every provider is off until you explicitly enable it.
+
+<details>
+<summary><strong>Technical data sources and important limitations</strong></summary>
+
+| Provider | Exact source | Important limitation |
+| --- | --- | --- |
+| Cursor | Cursor's pinned desktop usage RPC | Undocumented private interface; reads one existing access token only after explicit opt-in |
+| Codex | Official local `codex app-server` process | The app-server interface is documented as experimental |
+| Claude Code | Official status-line payload | Requires Claude Code; Claude Desktop Chat and free Claude.ai accounts do not expose this source |
+| GitHub Copilot CLI | Aggregate numeric values in the local CLI event database | Shows usage generated on this device, not the remaining account allowance |
+| Devin | Exact normalized plan record in Devin's local cache | The cache schema is undocumented and can change |
+| Antigravity | Exact model-credit record in Antigravity's local cache | The cache schema is undocumented and can change |
+
+Local cache cards are marked **Cached** after 30 minutes. Private or
+undocumented interfaces are experimental, default-disabled, strictly parsed,
+and designed to fail closed.
+
+</details>
+
+## Quick start
+
+### Requirements
+
+- Python 3.11 or newer
+- Tk support
+
+### macOS
 
 ```bash
+git clone https://github.com/mohitkale/ai-tools-usage-tracker.git
+cd ai-tools-usage-tracker
 python3 scripts/usage_widget.py
 ```
 
-The first launch is default-deny: it does not read a provider session, start a
-provider process, or make a network request. Open **Settings** and review each
-provider's permission description before enabling it. Enabled providers refresh
-in background threads so the window remains responsive. Disabled providers are
-removed from the main screen, and the window automatically fits the selected
-cards without a scrollbar. The always-on-top behavior and refresh interval are
-configurable.
+If a Homebrew Python installation does not include Tk, install the matching
+`python-tk@<version>` formula.
 
-The source launcher requires Python 3.11 or newer with Tk support. Official
-Windows Python installers normally include Tk. Ubuntu users can install the
-distribution's `python3-tk` package; Homebrew Python users can install the
-matching `python-tk@<version>` formula. Packaged builds include Python and Tk.
+### Windows
 
-### Provider coverage
-
-| Provider | Data shown | Source and freshness | Important limitation |
-| --- | --- | --- | --- |
-| Cursor | Total spend, total/Auto/API percentages, reset time | Live request to Cursor's pinned desktop usage RPC | Undocumented private interface; reads one existing access token after explicit opt-in |
-| Codex | Rolling quota percentages and reset times | Live official local `codex app-server` process | App-server interface is documented as experimental |
-| Claude Code | 5-hour/7-day limits or session context | Event-driven official status-line payload | Requires Claude Code; Claude Desktop Chat and the free Claude.ai plan do not expose this source |
-| GitHub Copilot CLI | Aggregate AI credits consumed on this machine | Undocumented local CLI event database | Not the remaining account allowance |
-| Devin | Daily/weekly quota and included usage | Undocumented local normalized cache | Fresh only when Devin updates its cache |
-| Antigravity | Available AI credits | Undocumented local model-credit cache | Fresh only when Antigravity updates its cache |
-
-Local cache cards are marked **Cached** after 30 minutes. Every provider remains
-disabled until it is explicitly connected.
-
-Claude Code supplies 5-hour and 7-day subscription limits only for eligible
-Claude.ai subscribers after an API response. When rate limits are absent, the
-hook can display Claude Code's current session-context percentage without
-misrepresenting it as an account allowance. Claude Code itself requires a
-supported paid or Console/API-backed account; the free Claude.ai plan does not
-include it. See Anthropic's
-[setup](https://code.claude.com/docs/en/getting-started) and
-[status-line](https://code.claude.com/docs/en/statusline) documentation.
-
-Claude Desktop Chat does not publish this status-line payload or a reviewed
-local quota interface. Its card therefore says **Claude Code only** instead of
-implying that a Desktop prompt should update it. The tracker does not inspect
-Claude Desktop conversations, cookies, or credentials.
-
-Copilot CLI records exact per-request AI-credit values in its own local event
-database. The tracker totals only that numeric column and shows usage generated
-on this machine. This is not an account balance: Copilot CLI does not currently
-offer a reviewed non-interactive interface for retrieving an individual plan's
-remaining allowance. The CLI itself supports Windows, macOS, and Linux; its
-documented user configuration root is `~/.copilot` or `COPILOT_HOME`.
-
-The header's minus button switches to a 340-pixel-wide compact view with one
-balance summary per provider; the plus button restores the detailed cards.
-Native window minimize remains available, including Command-M on macOS.
-
-Its exact local data flow and retained settings are documented in
-[docs/widget-security.md](docs/widget-security.md).
-
-## Provider names and logos
-
-Provider names are used only to identify the services this independent utility
-connects to. The project is not affiliated with, endorsed by, or sponsored by
-the listed providers. Official provider logos are intentionally not bundled:
-their trademark permissions differ by vendor and are not granted by this
-project's eventual open-source code license. The compact letter marks in the UI
-are neutral project-owned identifiers, not reproductions of provider logos.
-
-Before accepting a branded asset, maintainers should record its official source,
-applicable usage terms, required attribution, and whether redistribution inside
-source and binary releases is permitted. Plain-text provider names remain the
-safe default.
-
-## Packaging
-
-PyInstaller is a pinned build-only dependency; the application itself has no
-third-party Python runtime dependency. Build on the operating system and CPU
-architecture you intend to distribute for:
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-build.txt
-.venv/bin/python scripts/build_app.py
+```powershell
+git clone https://github.com/mohitkale/ai-tools-usage-tracker.git
+cd ai-tools-usage-tracker
+py scripts\usage_widget.py
 ```
 
-On Windows, replace `.venv/bin/python` with `.venv\Scripts\python`. The default
-output is an inspectable one-folder bundle under `dist/`; pass `--onefile` for a
-single executable. PyInstaller does not cross-compile, so Windows, Ubuntu, and
-macOS artifacts must each be produced on that target platform. Signing and
-notarization remain a release step. CI runs the full suite on all three systems
-and packages/smoke-tests Windows and Ubuntu bundles. These validation bundles
-are not uploaded or published. A green Windows CI job is required before
-calling a commit Windows-validated.
+The official Python installers for Windows normally include Tk.
 
-On macOS, build a tester DMG from the current machine and architecture with:
+### Ubuntu
 
 ```bash
-.venv/bin/python scripts/build_dmg.py
+sudo apt install python3-tk
+git clone https://github.com/mohitkale/ai-tools-usage-tracker.git
+cd ai-tools-usage-tracker
+python3 scripts/usage_widget.py
 ```
 
-The command rebuilds the application, verifies its code-signature structure,
-adds the project and collected runtime license texts, writes an SPDX SBOM, and
-produces a `.sha256` file beside the DMG under `dist/releases/`. Without a
-Developer ID certificate and Apple notarization, the result is an ad-hoc-signed
-tester build: recipients may see a Gatekeeper warning. Do not present it as a
-notarized production release.
+The first launch connects to nothing. Open **Settings**, review the permission
+requested by each provider, and enable only the tools you want to track.
 
-## Security verification
-
-Run the local publication checks before every push:
+### Try it without connecting anything
 
 ```bash
-python3 scripts/security_audit.py
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-python3 -m compileall -q src scripts tests
+python3 scripts/usage_widget.py --demo
 ```
 
-The repository audit examines tracked and untracked publishable files, scans
-Git history for common credential formats without printing matches, rejects
-sensitive filenames and repository symlinks, validates provider permissions,
-and verifies that the application has no third-party runtime dependency.
-The latest CISO-style review and remaining release gates are recorded in
-[docs/security-audit.md](docs/security-audit.md).
+Demo mode renders synthetic in-memory data. It cannot read provider files,
+start provider processes, use the network, or save settings.
+
+### Explicit permissions
+
+Every provider is disabled by default. The Settings screen explains the exact
+files, processes, or network access requested before a provider is enabled.
+
+<p align="center">
+  <img
+    src="docs/assets/settings.png"
+    alt="Provider settings explaining the access requested by each integration"
+    width="700"
+  />
+</p>
+
+## Detailed and compact modes
+
+Use the minus button to switch from detailed cards to a 340-pixel-wide summary;
+use plus to restore the detailed view.
+
+<p align="center">
+  <img
+    src="docs/assets/dashboard-compact.png"
+    alt="Compact AI Tools Usage Tracker window showing remaining Cursor, Claude Code, and Codex allowance"
+    width="676"
+  />
+</p>
+
+The walkthrough below moves from the detailed dashboard to compact mode and
+then to the explicit provider-permission screen.
+
+<p align="center">
+  <img
+    src="docs/assets/demo.gif"
+    alt="AI Tools Usage Tracker showing detailed usage, compact mode, and explicit provider permissions with synthetic data"
+    width="720"
+  />
+</p>
+
+## Privacy by design
+
+<p align="center">
+  <img
+    src="docs/assets/privacy-architecture.svg"
+    alt="Privacy architecture from installed AI tools through permission-controlled adapters and normalized local storage to the desktop widget"
+    width="1000"
+  />
+</p>
+
+- All providers are default-deny.
+- Permissions are scoped per provider; enabling one grants nothing to another.
+- The tracker does not enumerate an operating-system keychain, credential
+  manager, browser storage, or home directory.
+- Existing provider credentials are never copied into tracker settings.
+- Raw provider payloads are ephemeral and never stored.
+- Network destinations are adapter-specific allowlists; cross-host redirects
+  are rejected.
+- Logs and errors are tested against synthetic credential canaries.
+
+Read [SECURITY.md](SECURITY.md), the
+[threat model](docs/threat-model.md), and the
+[widget data-flow documentation](docs/widget-security.md) for the complete
+contract.
+
+## Project status
+
+| Area | Status |
+| --- | --- |
+| Source publication | Ready |
+| macOS, Windows, and Ubuntu test suites | Passing in CI |
+| Windows and Ubuntu packaged smoke tests | Passing in CI |
+| macOS tester DMG | Available to build locally; ad-hoc signed |
+| Public binary release | Blocked on signing, notarization, and remaining supply-chain gates |
+
+The current version is intended for source-based compatibility testing. Do not
+redistribute CI bundles or local tester builds as official releases. See the
+[release-readiness audit](docs/security-audit.md) and [roadmap](ROADMAP.md).
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. Provider
-integrations must preserve the default-deny permission model and pass the
-security audit.
+Bug reports, documentation improvements, platform testing, and carefully
+scoped provider work are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md) and read the security rules before proposing
+a provider integration.
+
+## Independent project
+
+AI Tools Usage Tracker is an independent open-source project. It is not
+affiliated with, endorsed by, or sponsored by Cursor, OpenAI, Anthropic,
+GitHub, Devin, or Google. Provider names are used only for compatibility
+identification. See the [trademark policy](docs/trademarks.md).
+
+## Technical documentation
+
+- [Collector CLI](docs/collector-cli.md)
+- [Provider data verification](docs/data-verification.md)
+- [Demo and screenshot capture](docs/demo-capture.md)
+- [Packaging and release status](docs/security-audit.md)
+- [Security policy](SECURITY.md)
+- [Threat model](docs/threat-model.md)
 
 ## License
 
 The project source is licensed under the
-[Apache License 2.0](LICENSE). The dependency and redistribution review is in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Provider names identify
-compatible services; their trademarks and logos are not licensed by this
-project.
-
-## Collector CLI
-
-The collector is intentionally based on the Python standard library so its
-behavior is easy to inspect and test.
-
-Run the credential-free probes directly from a checkout:
-
-```bash
-python3 scripts/usage_probe.py --pretty permissions
-python3 scripts/usage_probe.py --pretty discover
-python3 scripts/usage_probe.py --pretty fixture
-python3 scripts/usage_probe.py --pretty verify-fixtures
-```
-
-The `fixture` command emits synthetic quota data in the exact schema intended
-for the future UI. To parse a real Claude status-line payload without reading a
-credential or making a network request:
-
-```bash
-claude-status-command | python3 scripts/usage_probe.py --pretty claude-status
-```
-
-The widget's Claude card can configure that official status-line command after
-an explicit confirmation. It preserves all unrelated settings and refuses to
-overwrite an existing different status line.
-
-For a future UI to consume Claude updates, use the capture command as the
-status-line target:
-
-```bash
-python3 scripts/usage_probe.py claude-capture
-```
-
-It writes only the normalized latest snapshot to the current user's standard
-application-data directory. It never stores the raw stdin payload. Read it with:
-
-```bash
-python3 scripts/usage_probe.py --pretty snapshot --provider claude
-```
-
-Codex can be queried through its official local app-server. This starts the
-Codex binary with analytics disabled; Codex may use its own saved login and
-official provider connection, but the probe never receives the credential:
-
-```bash
-python3 scripts/usage_probe.py --pretty codex-live --allow-official-process
-```
-
-The consent flag is mandatory so discovery alone can never start an
-authenticated process.
-
-The probe checks the standard Codex CLI install directory and the Codex binary
-bundled with ChatGPT, in addition to `PATH`. A non-standard installation can be
-selected explicitly:
-
-```bash
-python3 scripts/usage_probe.py --pretty codex-live \
-  --allow-official-process \
-  --executable /trusted/path/to/codex
-```
-
-Cursor individual usage has no public API. An experimental, default-disabled
-probe can read exactly `cursorAuth/accessToken` from Cursor's SQLite state in
-read-only mode and send it only to Cursor's own desktop usage RPC at
-`https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`:
-
-```bash
-python3 scripts/usage_probe.py --pretty cursor-live \
-  --allow-private-cursor-session
-```
-
-The token is not printed, persisted, logged, or included in errors. Because the
-interface is undocumented, it may stop working after a Cursor update.
-
-Current collector coverage and live-test boundaries are recorded in
-[docs/data-verification.md](docs/data-verification.md). No live usage values are
-committed to the repository.
+[Apache License 2.0](LICENSE). Dependency and redistribution notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

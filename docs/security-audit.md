@@ -2,6 +2,8 @@
 
 Audit date: 2026-07-23
 
+Status update: 2026-07-24
+
 ## Executive decision
 
 **Source publication: go.** No critical or high-severity code finding remains
@@ -9,10 +11,10 @@ open after the remediations in this review. The source is licensed under
 Apache-2.0, third-party licenses have been inventoried, and the destination is
 the public `mohitkale/ai-tools-usage-tracker` repository.
 
-**Public binary release: no-go.** Windows and Ubuntu package jobs must first
-pass on GitHub-hosted runners. Release artifacts must then be signed, checksummed,
-and accompanied by an SBOM and hash-locked build inputs. CI artifacts are test
-outputs, not endorsed release binaries.
+**Public binary release: no-go.** Windows and Ubuntu package and smoke-test jobs
+now pass on GitHub-hosted runners. Release artifacts must still be signed,
+checksummed, and accompanied by platform-specific notices, SBOMs, and
+hash-locked build inputs. CI outputs are tests, not endorsed release binaries.
 
 The macOS DMG builder creates an ad-hoc-signed tester artifact with a checksum,
 SPDX SBOM, and runtime notices. It is suitable for controlled testing, but it
@@ -28,8 +30,8 @@ The review covered:
 - Provider filesystem, process, credential, and network access.
 - Default-deny behavior and settings persistence.
 - Error rendering, redaction, normalized storage, and cache parsing.
-- macOS behavior observed locally and Windows/Ubuntu code paths exercised by
-  platform-specific tests and CI definitions.
+- macOS behavior observed locally, cross-platform tests executed in CI, and
+  Windows/Ubuntu packages smoke-tested on GitHub-hosted runners.
 - Tracked, untracked publishable files, and Git patch history for common secret
   formats.
 
@@ -84,8 +86,8 @@ The review covered:
 | Copilot, Devin, and Antigravity cache schemas can change without notice | Medium | Exact queries, strict parsers, fail closed, default disabled |
 | Codex app-server is documented as experimental | Low | Exact method, bounded protocol, fail closed |
 | Claude Desktop Chat/free-tier account limits have no reviewed local source | Product limitation | Clearly disclose; do not scrape conversations, cookies, or credentials |
-| Windows/Ubuntu packages have not yet executed in repository CI | Medium | Publishing source may proceed; claiming target validation or releasing binaries may not |
-| Build dependency is version-pinned but not hash-locked and no SBOM is generated | Medium | Block public binary releases until release workflow is added |
+| Windows/Ubuntu packages pass CI but have not completed clean-machine tester validation | Low | Recruit platform testers before making installation claims |
+| Build dependency is version-pinned but not hash-locked; Windows/Ubuntu release SBOMs are not generated | Medium | Block public binary releases until a release workflow is added |
 | Binaries are not signed/notarized | High for binary distribution | Do not publish binaries until platform signing is configured |
 | Platform bundles require complete notices for their exact collected native components | Medium | Do not publish binaries until notices and SBOM are generated and verified per platform |
 

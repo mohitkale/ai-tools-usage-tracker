@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+  <title id="title">AI Tools Usage Tracker privacy architecture</title>
+  <desc id="desc">Installed AI tools pass through explicit permission-controlled provider adapters into normalized usage values, local settings and snapshots, and the desktop widget. The application has no telemetry or shared backend and does not store raw provider payloads or copied credentials.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0e14"/>
+      <stop offset="1" stop-color="#111721"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#7d86f7"/>
+    </marker>
+    <style>
+      .box { fill: #141b26; stroke: #2b3748; stroke-width: 2; }
+      .title { fill: #f2f5f8; font: 700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .body { fill: #98a4b3; font: 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .note { fill: #54d6a0; font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .flow { fill: none; stroke: #7d86f7; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="500" rx="26" fill="url(#background)"/>
+
+  <rect class="box" x="42" y="92" width="210" height="150" rx="16"/>
+  <text class="title" x="147" y="137" text-anchor="middle">Installed AI tools</text>
+  <text class="body" x="147" y="173" text-anchor="middle">Cursor · Codex</text>
+  <text class="body" x="147" y="198" text-anchor="middle">Claude · Copilot</text>
+  <text class="body" x="147" y="223" text-anchor="middle">Devin · Antigravity</text>
+
+  <rect class="box" x="322" y="92" width="240" height="150" rx="16"/>
+  <text class="title" x="442" y="132" text-anchor="middle">Provider adapters</text>
+  <text class="body" x="442" y="170" text-anchor="middle">Explicit per-provider</text>
+  <text class="body" x="442" y="195" text-anchor="middle">permissions and exact</text>
+  <text class="body" x="442" y="220" text-anchor="middle">resource declarations</text>
+
+  <rect class="box" x="632" y="92" width="220" height="150" rx="16"/>
+  <text class="title" x="742" y="137" text-anchor="middle">Normalized usage</text>
+  <text class="body" x="742" y="175" text-anchor="middle">Quota values, freshness,</text>
+  <text class="body" x="742" y="200" text-anchor="middle">and reset times only</text>
+
+  <rect class="box" x="922" y="92" width="236" height="150" rx="16"/>
+  <text class="title" x="1040" y="132" text-anchor="middle">Local dashboard</text>
+  <text class="body" x="1040" y="170" text-anchor="middle">User-only settings</text>
+  <text class="body" x="1040" y="195" text-anchor="middle">and normalized snapshots</text>
+  <text class="body" x="1040" y="220" text-anchor="middle">on this device</text>
+
+  <path class="flow" d="M252 167H312"/>
+  <path class="flow" d="M562 167H622"/>
+  <path class="flow" d="M852 167H912"/>
+
+  <rect x="42" y="304" width="1116" height="132" rx="18" fill="#10221d" stroke="#285a4b" stroke-width="2"/>
+  <text class="note" x="147" y="359" text-anchor="middle">No telemetry</text>
+  <text class="note" x="442" y="359" text-anchor="middle">No shared backend</text>
+  <text class="note" x="742" y="359" text-anchor="middle">No raw payload storage</text>
+  <text class="note" x="1040" y="359" text-anchor="middle">No copied credentials</text>
+  <text class="body" x="600" y="402" text-anchor="middle">Provider access remains off until the user explicitly enables it.</text>
+</svg>

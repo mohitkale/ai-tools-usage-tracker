@@ -12,7 +12,7 @@ class VerificationTests(unittest.TestCase):
         verification = verify_ui_readiness(all_snapshots())
 
         self.assertTrue(verification["ui_ready"])
-        self.assertEqual(verification["snapshot_count"], 2)
+        self.assertEqual(verification["snapshot_count"], 6)
         self.assertTrue(all(item["ready"] for item in verification["providers"]))
         self.assertNotIn("CANARY_SECRET", json.dumps(verification))
 
@@ -23,4 +23,3 @@ class VerificationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
