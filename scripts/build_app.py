@@ -49,27 +49,33 @@ def main() -> int:
         return 2
 
     mode = "--onefile" if args.onefile else "--onedir"
-    PyInstaller.__main__.run(
-        [
-            str(ENTRY_POINT),
-            mode,
-            "--windowed",
-            "--disable-windowed-traceback",
-            "--noupx",
-            "--clean",
-            "--noconfirm",
-            "--name",
-            "AI Usage Tracker",
-            "--paths",
-            str(SOURCE_ROOT),
-            "--distpath",
-            str(PROJECT_ROOT / "dist"),
-            "--workpath",
-            str(PROJECT_ROOT / "build"),
-            "--specpath",
-            str(PROJECT_ROOT / "build"),
-        ]
-    )
+    options = [
+        str(ENTRY_POINT),
+        mode,
+        "--windowed",
+        "--disable-windowed-traceback",
+        "--noupx",
+        "--clean",
+        "--noconfirm",
+        "--name",
+        "AI Usage Tracker",
+        "--paths",
+        str(SOURCE_ROOT),
+        "--distpath",
+        str(PROJECT_ROOT / "dist"),
+        "--workpath",
+        str(PROJECT_ROOT / "build"),
+        "--specpath",
+        str(PROJECT_ROOT / "build"),
+    ]
+    if sys.platform == "darwin":
+        options.extend(
+            [
+                "--osx-bundle-identifier",
+                "com.mohitkale.ai-usage-tracker",
+            ]
+        )
+    PyInstaller.__main__.run(options)
     return 0
 
 

@@ -14,6 +14,11 @@ pass on GitHub-hosted runners. Release artifacts must then be signed, checksumme
 and accompanied by an SBOM and hash-locked build inputs. CI artifacts are test
 outputs, not endorsed release binaries.
 
+The macOS DMG builder creates an ad-hoc-signed tester artifact with a checksum,
+SPDX SBOM, and runtime notices. It is suitable for controlled testing, but it
+does not change the public-release decision until Developer ID signing and
+Apple notarization are configured.
+
 ## Scope
 
 The review covered:

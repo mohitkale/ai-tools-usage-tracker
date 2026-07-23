@@ -133,6 +133,19 @@ and packages/smoke-tests Windows and Ubuntu bundles. These validation bundles
 are not uploaded or published. A green Windows CI job is required before
 calling a commit Windows-validated.
 
+On macOS, build a tester DMG from the current machine and architecture with:
+
+```bash
+.venv/bin/python scripts/build_dmg.py
+```
+
+The command rebuilds the application, verifies its code-signature structure,
+adds the project and collected runtime license texts, writes an SPDX SBOM, and
+produces a `.sha256` file beside the DMG under `dist/releases/`. Without a
+Developer ID certificate and Apple notarization, the result is an ad-hoc-signed
+tester build: recipients may see a Gatekeeper warning. Do not present it as a
+notarized production release.
+
 ## Security verification
 
 Run the local publication checks before every push:
