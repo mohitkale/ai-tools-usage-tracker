@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -9,11 +10,12 @@ import sys
 import tempfile
 from typing import Any
 
-from .model import ProviderSnapshot
+from .model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus
 from .security import absolute_environment_path, redact
 
 
 MAX_SNAPSHOT_BYTES = 256 * 1024
+MAX_SNAPSHOT_WINDOWS = 16
 PROVIDER_ID = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 SNAPSHOT_KEYS = {
     "schema_version",
@@ -25,6 +27,17 @@ SNAPSHOT_KEYS = {
     "windows",
     "error_code",
     "message",
+}
+WINDOW_KEYS = {
+    "id",
+    "label",
+    "unit",
+    "used",
+    "limit",
+    "remaining",
+    "used_percent",
+    "window_seconds",
+    "resets_at",
 }
 
 
@@ -56,8 +69,54 @@ def _validate_document(document: Any, provider_id: str) -> dict[str, Any]:
         raise ValueError("unsupported snapshot schema")
     if document.get("provider_id") != provider_id:
         raise ValueError("snapshot provider does not match its filename")
-    if not isinstance(document.get("windows"), list):
+    windows = document.get("windows")
+    if not isinstance(windows, list) or len(windows) > MAX_SNAPSHOT_WINDOWS:
         raise ValueError("snapshot windows must be an array")
+    try:
+        collected_at = datetime.fromisoformat(
+            str(document.get("collected_at")).replace("Z", "+00:00")
+        )
+        if collected_at.tzinfo is None:
+            raise ValueError("snapshot timestamp requires a timezone")
+        parsed_windows = []
+        for window in windows:
+            if not isinstance(window, dict) or set(window) != WINDOW_KEYS:
+                raise ValueError("snapshot window has an unsupported schema")
+            reset_value = window.get("resets_at")
+            resets_at = None
+            if reset_value is not None:
+                if not isinstance(reset_value, str) or len(reset_value) > 64:
+                    raise ValueError("snapshot reset timestamp is invalid")
+                resets_at = datetime.fromisoformat(
+                    reset_value.replace("Z", "+00:00")
+                )
+                if resets_at.tzinfo is None:
+                    raise ValueError("snapshot reset timestamp requires a timezone")
+            parsed_windows.append(
+                QuotaWindow(
+                    id=window.get("id"),
+                    label=window.get("label"),
+                    unit=window.get("unit"),
+                    used=window.get("used"),
+                    limit=window.get("limit"),
+                    remaining=window.get("remaining"),
+                    used_percent=window.get("used_percent"),
+                    window_seconds=window.get("window_seconds"),
+                    resets_at=resets_at,
+                )
+            )
+        ProviderSnapshot(
+            provider_id=provider_id,
+            display_name=document.get("display_name"),
+            status=SnapshotStatus(document.get("status")),
+            source=DataSource(document.get("source")),
+            collected_at=collected_at,
+            windows=tuple(parsed_windows),
+            error_code=document.get("error_code"),
+            message=document.get("message"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("snapshot contains invalid normalized fields") from exc
     return document
 
 
@@ -94,12 +153,14 @@ class SnapshotStore:
                 delete=False,
             ) as temporary:
                 temporary_name = temporary.name
-                os.chmod(temporary.name, 0o600)
+                if os.name != "nt":
+                    os.chmod(temporary.name, 0o600)
                 temporary.write(encoded)
                 temporary.flush()
                 os.fsync(temporary.fileno())
             os.replace(temporary_name, target)
-            os.chmod(target, 0o600)
+            if os.name != "nt":
+                os.chmod(target, 0o600)
             temporary_name = None
             return target
         finally:

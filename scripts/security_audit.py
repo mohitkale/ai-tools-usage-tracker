@@ -79,7 +79,7 @@ def _repository_files() -> tuple[Path, ...]:
             continue
         relative = encoded.decode("utf-8", errors="strict")
         path = PROJECT_ROOT / relative
-        if path.is_file() and not path.is_symlink():
+        if path.is_file() or path.is_symlink():
             paths.append(path)
     return tuple(paths)
 
@@ -108,6 +108,11 @@ def _scan_files(findings: list[dict[str, str]]) -> int:
     scanned = 0
     for path in _repository_files():
         relative = path.relative_to(PROJECT_ROOT)
+        if path.is_symlink():
+            findings.append(
+                {"type": "repository_symlink", "location": relative.as_posix()}
+            )
+            continue
         lower_name = path.name.casefold()
         if lower_name in FORBIDDEN_BASENAMES or path.suffix.casefold() in FORBIDDEN_SUFFIXES:
             findings.append(

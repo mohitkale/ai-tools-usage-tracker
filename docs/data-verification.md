@@ -31,10 +31,12 @@ live payload requires the user to explicitly configure a Claude status-line
 command. It reads the payload from stdin and has no credential or network
 permission.
 
-Anthropic supplies `rate_limits` only to Claude.ai Pro/Max subscribers after an
-API response. When that object is absent on the free tier, the adapter uses the
-official `context_window.used_percentage` field and labels it `Session context`;
-it does not misrepresent session context as an account allowance.
+Anthropic supplies `rate_limits` only to eligible Claude.ai subscribers after
+an API response. When that object is absent, the adapter uses the official
+`context_window.used_percentage` field and labels it `Session context`; it does
+not misrepresent session context as an account allowance. Claude Code is not
+included in the free Claude.ai plan, and Claude Desktop Chat does not emit this
+status-line payload.
 
 The `claude-capture` command can serve as that status-line target. It writes one
 normalized snapshot atomically with user-only permissions and prints a short
@@ -103,17 +105,23 @@ The live probe on this machine returned one normalized local usage value after
 a Copilot CLI prompt. It does not claim to be the user's remaining plan balance:
 Copilot CLI's account `/usage` view is interactive, and no reviewed
 non-interactive individual-account quota interface is used by this project.
+Because the event-table schema is not documented by GitHub, this remains a
+default-disabled private-state adapter even though the database belongs to the
+official CLI.
 
 ### Devin
 
 The installed Devin desktop app was verified to cache a normalized plan record
 containing daily/weekly quota values and included usage counters. The adapter
 selects that exact record only, ignores all text/account metadata, and marks old
-cache data as cached in the widget.
+cache data as cached in the widget. This cache schema is undocumented and is
+therefore classified as private experimental state.
 
 ### Antigravity
 
 The installed Antigravity app was verified to cache an exact model-credit
 record separately from its OAuth record. The adapter decodes only the available
 credit integer and marks old cache data as cached. Antigravity's documented
-baseline model-quota view remains interactive and is not scraped.
+baseline model-quota view remains interactive and is not scraped. The local
+cache schema is undocumented and is therefore classified as private
+experimental state.

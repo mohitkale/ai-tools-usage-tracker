@@ -40,6 +40,37 @@ class SnapshotStoreTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "provider identifier"):
                 store.load("../auth")
 
+    def test_rejects_invalid_normalized_fields_on_load(self) -> None:
+        snapshot = ProviderSnapshot(
+            provider_id="claude",
+            display_name="Claude Code",
+            status=SnapshotStatus.NO_DATA,
+            source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+            collected_at=datetime(2026, 7, 22, tzinfo=UTC),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            store = SnapshotStore(Path(directory))
+            target = store.save(snapshot)
+            document = json.loads(target.read_text(encoding="utf-8"))
+            document["status"] = "available"
+            document["windows"] = [
+                {
+                    "id": "session",
+                    "label": "Session",
+                    "unit": "percent",
+                    "used": True,
+                    "limit": None,
+                    "remaining": None,
+                    "used_percent": 10,
+                    "window_seconds": None,
+                    "resets_at": None,
+                }
+            ]
+            target.write_text(json.dumps(document), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "invalid normalized fields"):
+                store.load("claude")
+
     def test_rejects_symlinked_snapshot(self) -> None:
         if os.name == "nt":
             self.skipTest("symlink creation is permission-dependent on Windows")

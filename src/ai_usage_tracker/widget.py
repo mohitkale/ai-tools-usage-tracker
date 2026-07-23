@@ -1230,10 +1230,11 @@ class UsageWidget:
             return
         try:
             install_claude_status_line(widget_capture_argv())
-        except (ClaudeSetupError, OSError, ValueError) as exc:
+        except (ClaudeSetupError, OSError, ValueError):
             self.messagebox.showerror(
                 "Claude setup not changed",
-                str(exc),
+                "Claude Code settings could not be updated safely. "
+                "No existing status line was changed.",
                 parent=self.root,
             )
             return

@@ -46,6 +46,9 @@ action. Enabling one provider does not grant permission to another.
 - Tests fail if a canary appears in serialized state, logs, or diagnostics.
 - Live provider tests are separate from unit tests and require explicit flags.
 - Fixtures must not be derived from real accounts without complete redaction.
+- `python3 scripts/security_audit.py` must pass before publication.
+- CI must pass on macOS, Ubuntu, and Windows; binary release jobs must also pass
+  their target-platform smoke tests.
 - Dependency versions and hashes will be locked before distributable builds.
 
 ## Reporting a vulnerability

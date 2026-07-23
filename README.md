@@ -36,34 +36,40 @@ python3 scripts/usage_widget.py
 ```
 
 The first launch is default-deny: it does not read a provider session, start a
-provider process, or make a network request. Open **Settings**, review each
-provider's permission description, or use a provider card's **Connect** action
-to grant access directly. Enabled providers refresh in background threads so
-the window remains responsive. The always-on-top behavior and refresh interval
-are configurable.
+provider process, or make a network request. Open **Settings** and review each
+provider's permission description before enabling it. Enabled providers refresh
+in background threads so the window remains responsive. Disabled providers are
+removed from the main screen, and the window automatically fits the selected
+cards without a scrollbar. The always-on-top behavior and refresh interval are
+configurable.
 
 The source launcher requires Python 3.11 or newer with Tk support. Official
 Windows Python installers normally include Tk. Ubuntu users can install the
 distribution's `python3-tk` package; Homebrew Python users can install the
 matching `python-tk@<version>` formula. Packaged builds include Python and Tk.
 
-The widget currently supports:
+### Provider coverage
 
-- Cursor total usage plus total, Auto, and API percentages and reset time.
-- Codex rate-limit windows, percentages, and reset times.
-- Claude Code windows captured by the one-click official status-line hook.
-- GitHub Copilot CLI's aggregate local AI-credit usage from its read-only event
-  database.
-- Devin daily, weekly, and included usage from its exact normalized plan cache.
-- Antigravity's available AI credits from its exact local model-credit cache.
+| Provider | Data shown | Source and freshness | Important limitation |
+| --- | --- | --- | --- |
+| Cursor | Total spend, total/Auto/API percentages, reset time | Live request to Cursor's pinned desktop usage RPC | Undocumented private interface; reads one existing access token after explicit opt-in |
+| Codex | Rolling quota percentages and reset times | Live official local `codex app-server` process | App-server interface is documented as experimental |
+| Claude Code | 5-hour/7-day limits or session context | Event-driven official status-line payload | Requires Claude Code; Claude Desktop Chat and the free Claude.ai plan do not expose this source |
+| GitHub Copilot CLI | Aggregate AI credits consumed on this machine | Undocumented local CLI event database | Not the remaining account allowance |
+| Devin | Daily/weekly quota and included usage | Undocumented local normalized cache | Fresh only when Devin updates its cache |
+| Antigravity | Available AI credits | Undocumented local model-credit cache | Fresh only when Antigravity updates its cache |
 
 Local cache cards are marked **Cached** after 30 minutes. Every provider remains
 disabled until it is explicitly connected.
 
-Claude Code supplies 5-hour and 7-day subscription limits only for Pro/Max
-accounts. On the free tier, the same local hook displays the current session's
-context-window percentage after the next Claude Code assistant response. Merely
-opening Claude or this widget does not trigger a status-line update.
+Claude Code supplies 5-hour and 7-day subscription limits only for eligible
+Claude.ai subscribers after an API response. When rate limits are absent, the
+hook can display Claude Code's current session-context percentage without
+misrepresenting it as an account allowance. Claude Code itself requires a
+supported paid or Console/API-backed account; the free Claude.ai plan does not
+include it. See Anthropic's
+[setup](https://code.claude.com/docs/en/getting-started) and
+[status-line](https://code.claude.com/docs/en/statusline) documentation.
 
 Claude Desktop Chat does not publish this status-line payload or a reviewed
 local quota interface. Its card therefore says **Claude Code only** instead of
@@ -74,7 +80,8 @@ Copilot CLI records exact per-request AI-credit values in its own local event
 database. The tracker totals only that numeric column and shows usage generated
 on this machine. This is not an account balance: Copilot CLI does not currently
 offer a reviewed non-interactive interface for retrieving an individual plan's
-remaining allowance.
+remaining allowance. The CLI itself supports Windows, macOS, and Linux; its
+documented user configuration root is `~/.copilot` or `COPILOT_HOME`.
 
 The header's minus button switches to a compact view with one balance summary
 per provider; the plus button restores the detailed cards. Native window
@@ -113,7 +120,26 @@ On Windows, replace `.venv/bin/python` with `.venv\Scripts\python`. The default
 output is an inspectable one-folder bundle under `dist/`; pass `--onefile` for a
 single executable. PyInstaller does not cross-compile, so Windows, Ubuntu, and
 macOS artifacts must each be produced on that target platform. Signing and
-notarization remain a release step.
+notarization remain a release step. CI runs the full suite on all three systems
+and packages/smoke-tests Windows and Ubuntu bundles. A green Windows CI job is
+required before calling a commit Windows-validated.
+
+## Security verification
+
+Run the local publication checks before every push:
+
+```bash
+python3 scripts/security_audit.py
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+python3 -m compileall -q src scripts tests
+```
+
+The repository audit examines tracked and untracked publishable files, scans
+Git history for common credential formats without printing matches, rejects
+sensitive filenames and repository symlinks, validates provider permissions,
+and verifies that the application has no third-party runtime dependency.
+The latest CISO-style review and remaining release gates are recorded in
+[docs/security-audit.md](docs/security-audit.md).
 
 ## Collector CLI
 

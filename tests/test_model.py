@@ -12,6 +12,15 @@ from ai_usage_tracker.model import (
 
 
 class ModelTests(unittest.TestCase):
+    def test_boolean_usage_is_not_accepted_as_a_number(self) -> None:
+        with self.assertRaisesRegex(ValueError, "numeric"):
+            QuotaWindow(
+                id="daily",
+                label="Daily",
+                unit="requests",
+                used=True,
+            )
+
     def test_available_snapshot_requires_usage_window(self) -> None:
         with self.assertRaisesRegex(ValueError, "at least one"):
             ProviderSnapshot(
@@ -60,4 +69,3 @@ class ModelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

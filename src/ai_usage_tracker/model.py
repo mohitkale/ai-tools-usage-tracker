@@ -36,7 +36,11 @@ def _iso8601(value: datetime | None) -> str | None:
 
 
 def _finite_number(name: str, value: float | None) -> None:
-    if value is not None and not math.isfinite(value):
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be numeric")
+    if not math.isfinite(value):
         raise ValueError(f"{name} must be finite")
 
 
@@ -55,6 +59,8 @@ class QuotaWindow:
     def __post_init__(self) -> None:
         if not self.id or not self.label or not self.unit:
             raise ValueError("quota id, label, and unit are required")
+        if len(self.id) > 64 or len(self.label) > 80 or len(self.unit) > 32:
+            raise ValueError("quota text exceeds the size limit")
         for name in ("used", "limit", "remaining", "used_percent"):
             value = getattr(self, name)
             _finite_number(name, value)
@@ -62,8 +68,13 @@ class QuotaWindow:
                 raise ValueError(f"{name} cannot be negative")
         if self.used_percent is not None and self.used_percent > 100:
             raise ValueError("used_percent cannot exceed 100")
-        if self.window_seconds is not None and self.window_seconds <= 0:
-            raise ValueError("window_seconds must be positive")
+        if self.window_seconds is not None:
+            if isinstance(self.window_seconds, bool) or not isinstance(
+                self.window_seconds, int
+            ):
+                raise ValueError("window_seconds must be an integer")
+            if self.window_seconds <= 0:
+                raise ValueError("window_seconds must be positive")
         _iso8601(self.resets_at)
 
     def to_dict(self) -> dict[str, Any]:
@@ -94,6 +105,16 @@ class ProviderSnapshot:
     def __post_init__(self) -> None:
         if not self.provider_id or not self.display_name:
             raise ValueError("provider id and display name are required")
+        if len(self.provider_id) > 64 or len(self.display_name) > 80:
+            raise ValueError("provider text exceeds the size limit")
+        if self.error_code is not None and (
+            not isinstance(self.error_code, str) or len(self.error_code) > 80
+        ):
+            raise ValueError("error code is invalid")
+        if self.message is not None and (
+            not isinstance(self.message, str) or len(self.message) > 500
+        ):
+            raise ValueError("provider message is invalid")
         _iso8601(self.collected_at)
         if self.status == SnapshotStatus.AVAILABLE and not self.windows:
             raise ValueError("available snapshots require at least one quota window")

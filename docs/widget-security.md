@@ -54,7 +54,9 @@ raw exception messages are never passed through to the interface.
   `MAX(created_at)` from `assistant_usage_events`. It does not select prompt
   text, session identifiers, model names, token counts, logs, configuration, or
   credentials. The result is local Copilot CLI consumption, not an account plan
-  balance, and the widget performs no GitHub network request.
+  balance, and the widget performs no GitHub network request. The event-table
+  schema is undocumented, so this adapter is classified as private and
+  experimental.
 - **Devin:** selects only `windsurf.settings.cachedPlanInfo` from Devin's local
   SQLite database in read-only/query-only mode. Auth and session rows are not
   selected.
@@ -73,5 +75,6 @@ SQLite, TLS, and HTTP support. PyInstaller is used only during packaging and is
 not imported by the running application. Its default one-folder output makes
 the bundled files easier to inventory than a self-extracting one-file build.
 
-Builds are platform-specific. A public release still requires dependency hash
-locks, artifact checksums, an SBOM, and the target platform's signing process.
+Builds are platform-specific. CI packages and smoke-tests Windows and Ubuntu,
+but public binary releases still require dependency hash locks, artifact
+checksums, an SBOM, and the target platform's signing process.

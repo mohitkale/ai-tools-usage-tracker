@@ -28,12 +28,14 @@ The following inputs are untrusted:
 | Secret persistence | Normalized schema allowlist; no raw-response storage |
 | Keychain overreach | Exact service/account lookups only; no enumeration |
 | Malicious redirect | Reject redirects that change scheme, host, or port |
-| Command injection | Spawn exact executable paths with fixed argument arrays; never invoke a shell |
+| Command injection | Provider processes use fixed argument arrays with `shell=False`; the consented Claude status hook writes one fixed, escaped command for Claude Code to invoke |
 | Cache schema changes | Versioned parsers, size limits, strict types, fail closed |
 | Sensitive diagnostics | Structured redaction and canary tests |
 | Supply-chain compromise | Locked hashes, vendored release inputs, SBOM, minimal dependencies |
 | Local privilege expansion | No root, accessibility, screen recording, or full-disk permissions |
 | Undocumented API breakage | Experimental adapters disabled by default and isolated from stable adapters |
+| Malicious environment paths | Environment-provided directories are accepted only when absolute |
+| Repository secret exposure | Local audit scans publishable files and Git history without printing matched values |
 
 ## Data retained
 
@@ -55,4 +57,3 @@ An adapter cannot become enabled-by-default until tests prove its resource
 declaration, outbound host enforcement, response size limit, parser behavior,
 redaction, and persistent output. Undocumented integrations cannot pass this
 gate; they remain explicit experiments.
-
