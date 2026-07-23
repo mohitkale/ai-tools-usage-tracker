@@ -25,7 +25,8 @@ def verify_ui_readiness(snapshots: Iterable[ProviderSnapshot]) -> dict[str, Any]
         available = snapshot.status == SnapshotStatus.AVAILABLE
         measures = [
             window.used_percent is not None
-            or (window.used is not None and window.limit is not None)
+            or window.used is not None
+            or window.remaining is not None
             for window in snapshot.windows
         ]
         windows_ready = (not available and not snapshot.windows) or (
@@ -55,4 +56,3 @@ def verify_ui_readiness(snapshots: Iterable[ProviderSnapshot]) -> dict[str, Any]
         "snapshot_count": count,
         "providers": results,
     }
-

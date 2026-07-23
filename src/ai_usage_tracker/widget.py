@@ -11,6 +11,7 @@ import threading
 import time
 from typing import Any, Collection, Mapping, Sequence
 
+from .fixtures import all_snapshots
 from .model import ProviderSnapshot
 from .providers.antigravity import read_antigravity_usage
 from .providers.claude import MAX_STATUS_PAYLOAD_BYTES, parse_status_payload
@@ -354,6 +355,40 @@ class ProviderCollector:
         return error_display(provider_id)
 
 
+class DemoProviderCollector:
+    """Returns synthetic snapshots without touching provider resources."""
+
+    def __init__(self) -> None:
+        collected_at = datetime.now(UTC)
+        self.displays = {
+            snapshot.provider_id: display_from_snapshot(snapshot)
+            for snapshot in all_snapshots(collected_at)
+        }
+
+    def collect(self, provider_id: str) -> ProviderDisplay:
+        try:
+            return self.displays[provider_id]
+        except KeyError:
+            return error_display(provider_id)
+
+
+class DemoSettingsStore:
+    """Keeps demo preferences in memory so the demo never writes local state."""
+
+    def __init__(self) -> None:
+        self.settings = WidgetSettings(
+            enabled_providers=frozenset({"cursor", "claude", "codex"}),
+            refresh_minutes=5,
+            always_on_top=False,
+        )
+
+    def load(self) -> WidgetSettings:
+        return self.settings
+
+    def save(self, settings: WidgetSettings) -> None:
+        self.settings = settings
+
+
 class UsageWidget:
     BG = "#0A0E14"
     SURFACE = "#111721"
@@ -383,6 +418,8 @@ class UsageWidget:
         messagebox: Any,
         settings_store: WidgetSettingsStore,
         collector: ProviderCollector,
+        *,
+        demo_mode: bool = False,
     ) -> None:
         self.root = root
         self.tk = tk
@@ -390,6 +427,7 @@ class UsageWidget:
         self.messagebox = messagebox
         self.settings_store = settings_store
         self.collector = collector
+        self.demo_mode = demo_mode
         self.font_family = (
             "SF Pro Text"
             if sys.platform == "darwin"
@@ -427,7 +465,7 @@ class UsageWidget:
         self.root.after(200, lambda: self.refresh_all(force=True))
 
     def _configure_window(self) -> None:
-        self.root.title("Mohit's AI Usage Tracker")
+        self.root.title("AI Tools Usage Tracker")
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
@@ -476,7 +514,7 @@ class UsageWidget:
         title_group.pack(side="left")
         self.title_label = self.tk.Label(
             title_group,
-            text="Mohit's AI Usage Tracker",
+            text="AI Tools Usage Tracker",
             bg=self.BG,
             fg=self.TEXT,
             font=self._font(14, "bold"),
@@ -533,7 +571,11 @@ class UsageWidget:
         privacy_dot.create_oval(1, 1, 7, 7, fill=self.GREEN, outline="")
         self.tk.Label(
             footer,
-            text="Local only · no telemetry",
+            text=(
+                "Synthetic demo · no provider access"
+                if self.demo_mode
+                else "Local only · no telemetry"
+            ),
             bg=self.BG,
             fg=self.FAINT,
             font=self._font(7),
@@ -810,7 +852,7 @@ class UsageWidget:
             self.updated_label.pack_forget()
         else:
             self.title_label.configure(
-                text="Mohit's AI Usage Tracker",
+                text="AI Tools Usage Tracker",
                 font=self._font(14, "bold"),
             )
             self.updated_label.pack(side="right", padx=(0, 9))
@@ -1280,7 +1322,7 @@ class UsageWidget:
 
     def open_settings(self) -> None:
         dialog = self.tk.Toplevel(self.root)
-        dialog.title("Mohit's AI Usage Tracker Settings")
+        dialog.title("AI Tools Usage Tracker Settings")
         dialog.configure(bg=self.BG)
         dialog.resizable(False, False)
         dialog.transient(self.root)
@@ -1402,15 +1444,28 @@ class UsageWidget:
         self.root.destroy()
 
 
-def run_widget(data_dir: Path | None = None, *, smoke_test: bool = False) -> None:
+def run_widget(
+    data_dir: Path | None = None,
+    *,
+    smoke_test: bool = False,
+    demo_mode: bool = False,
+) -> None:
     tk, messagebox, ttk = load_tk_modules()
     try:
         root = tk.Tk()
     except tk.TclError as exc:
         raise WidgetRuntimeError("The desktop display is unavailable.") from exc
-    settings_store = WidgetSettingsStore(data_dir)
-    collector = ProviderCollector(data_dir)
-    widget = UsageWidget(root, tk, ttk, messagebox, settings_store, collector)
+    settings_store = DemoSettingsStore() if demo_mode else WidgetSettingsStore(data_dir)
+    collector = DemoProviderCollector() if demo_mode else ProviderCollector(data_dir)
+    widget = UsageWidget(
+        root,
+        tk,
+        ttk,
+        messagebox,
+        settings_store,
+        collector,
+        demo_mode=demo_mode,
+    )
     if smoke_test:
         def finish_smoke_test() -> None:
             root.update_idletasks()
@@ -1443,11 +1498,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="render the widget once and exit without enabling providers",
     )
     parser.add_argument(
+        "--demo",
+        action="store_true",
+        help=(
+            "show synthetic in-memory usage without reading provider files, "
+            "starting provider processes, accessing the network, or saving settings"
+        ),
+    )
+    parser.add_argument(
         "--claude-capture",
         action="store_true",
         help=argparse.SUPPRESS,
     )
     args = parser.parse_args(argv)
+    if args.demo and args.claude_capture:
+        parser.error("--demo cannot be combined with --claude-capture")
+    if args.demo and args.data_dir:
+        parser.error("--demo keeps all state in memory and does not use --data-dir")
     if args.claude_capture:
         try:
             payload = sys.stdin.buffer.read(MAX_STATUS_PAYLOAD_BYTES + 1)
@@ -1469,6 +1536,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_widget(
             Path(args.data_dir) if args.data_dir else None,
             smoke_test=args.smoke_test,
+            demo_mode=args.demo,
         )
     except WidgetRuntimeError as exc:
         print(f"AI Usage Tracker: {exc}")

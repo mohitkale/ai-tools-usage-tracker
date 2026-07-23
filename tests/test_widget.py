@@ -8,8 +8,11 @@ from unittest.mock import patch
 
 from ai_usage_tracker.model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus
 from ai_usage_tracker.providers.github_copilot import GitHubCopilotProbeError
+from ai_usage_tracker.widget_settings import WidgetSettings
 from ai_usage_tracker.widget import (
     PROVIDER_ORDER,
+    DemoProviderCollector,
+    DemoSettingsStore,
     ProviderCollector,
     ProviderDisplay,
     UsageWidget,
@@ -162,6 +165,38 @@ class WidgetFormattingTests(unittest.TestCase):
 
 
 class WidgetCollectorTests(unittest.TestCase):
+    def test_demo_collector_uses_only_synthetic_snapshots(self) -> None:
+        with (
+            patch("ai_usage_tracker.widget.read_cursor_usage") as cursor,
+            patch("ai_usage_tracker.widget.read_rate_limits") as codex,
+            patch("ai_usage_tracker.widget.read_copilot_cli_usage") as copilot,
+            patch("ai_usage_tracker.widget.read_devin_usage") as devin,
+            patch("ai_usage_tracker.widget.read_antigravity_usage") as antigravity,
+        ):
+            collector = DemoProviderCollector()
+            displays = tuple(
+                collector.collect(provider_id) for provider_id in PROVIDER_ORDER
+            )
+
+        self.assertTrue(all(display.status == "available" for display in displays))
+        for provider_call in (cursor, codex, copilot, devin, antigravity):
+            provider_call.assert_not_called()
+
+    def test_demo_settings_are_in_memory_and_enable_primary_providers(self) -> None:
+        store = DemoSettingsStore()
+
+        self.assertEqual(
+            store.load().enabled_providers,
+            frozenset({"cursor", "claude", "codex"}),
+        )
+        updated = WidgetSettings(
+            enabled_providers=frozenset(PROVIDER_ORDER),
+            always_on_top=False,
+        )
+        store.save(updated)
+
+        self.assertEqual(store.load(), updated)
+
     def test_known_github_failure_returns_static_safe_guidance(self) -> None:
         with patch(
             "ai_usage_tracker.widget.read_copilot_cli_usage",
