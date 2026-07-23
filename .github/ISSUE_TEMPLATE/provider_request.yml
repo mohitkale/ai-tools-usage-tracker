@@ -1,0 +1,72 @@
+name: Provider request
+description: Request a provider integration that can fit the security model.
+title: "[Provider]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not submit credentials, cookies, tokens, databases, raw payloads, prompts, or unredacted screenshots. A provider count is never prioritized over safe access.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+    validations:
+      required: true
+  - type: textarea
+    id: usage
+    attributes:
+      label: Usage information needed
+      description: Which quotas, credits, spend, or reset windows should be shown?
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Best known interface
+      options:
+        - Official API
+        - Official CLI or local process
+        - Documented status hook or local payload
+        - Documented local file
+        - Undocumented local state
+        - Unknown
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Public documentation
+      description: Link to the provider's documentation when available.
+  - type: dropdown
+    id: credentials
+    attributes:
+      label: Does it require credential access?
+      options:
+        - No
+        - Delegated to an official local process
+        - Exact existing credential reference
+        - New app-owned credential
+        - Unknown
+    validations:
+      required: true
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platforms
+      options:
+        - label: macOS
+        - label: Windows
+        - label: Linux
+  - type: checkboxes
+    id: default_deny
+    attributes:
+      label: Permission model
+      options:
+        - label: The integration can remain off until the user explicitly enables it.
+          required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional limitations or context

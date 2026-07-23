@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem without sharing private provider data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach credentials, cookies, tokens, provider databases, raw payloads, prompts, account identifiers, local paths, or unredacted screenshots.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data-safety confirmation
+      options:
+        - label: I removed all credentials, account identifiers, personal usage values, and private paths.
+          required: true
+        - label: I reproduced with synthetic data or described why that is not possible.
+          required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Ubuntu or another Linux distribution
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version or packaged build
+      placeholder: "Python 3.11.9 or packaged tester build"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Affected provider
+      options:
+        - None / application UI
+        - Cursor
+        - Claude Code
+        - Codex
+        - Devin
+        - Antigravity
+        - GitHub Copilot CLI
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use the offline `--demo` mode when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Paraphrase errors if they contain private data.
+    validations:
+      required: true

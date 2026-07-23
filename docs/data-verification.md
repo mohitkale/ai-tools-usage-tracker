@@ -2,17 +2,17 @@
 
 ## UI data contract
 
-Before a desktop UI is added, an available provider snapshot must supply:
+An available provider snapshot supplied to the desktop UI must include:
 
 - Stable provider identifier and display label.
 - Status and source classification.
 - UTC collection time for freshness display.
 - At least one labeled quota window.
-- A percentage, or a used value paired with its limit.
+- A percentage, used value, or remaining value.
 - Reset time and window duration when exposed by the provider.
 
-The future UI must handle absent reset times and providers that report only
-consumption rather than a percentage.
+The UI handles absent reset times and providers that report only consumption or
+remaining credits rather than a percentage.
 
 Run the deterministic contract check with:
 
