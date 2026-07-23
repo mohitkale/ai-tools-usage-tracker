@@ -24,9 +24,8 @@ from .providers.codex import read_rate_limits, resolve_codex_executable
 from .providers.cursor import read_cursor_usage
 from .providers.devin import read_devin_usage
 from .providers.github_copilot import (
-    GITHUB_LOGIN_COMMAND,
     GitHubCopilotProbeError,
-    read_copilot_usage,
+    read_copilot_cli_usage,
     safe_error_guidance,
     safe_error_status,
 )
@@ -44,7 +43,7 @@ PROVIDER_ORDER = (
 )
 PROVIDER_NAMES = {
     "cursor": "Cursor",
-    "claude": "Claude Code",
+    "claude": "Claude",
     "codex": "Codex",
     "github_copilot": "GitHub Copilot",
     "devin": "Devin",
@@ -54,7 +53,7 @@ PROVIDER_DESCRIPTIONS = {
     "cursor": "Reads one exact Cursor session record and sends it only to Cursor's usage RPC.",
     "claude": "Reads only the normalized local status snapshot; no credential or network access.",
     "codex": "Starts the official local Codex process; Codex keeps control of its own login.",
-    "github_copilot": "Starts the official GitHub CLI and requests only Copilot premium-request totals.",
+    "github_copilot": "Reads only numeric AI-credit totals recorded by the official Copilot CLI.",
     "devin": "Reads only Devin's normalized cached plan record; authentication records are excluded.",
     "antigravity": "Reads only Antigravity's cached model-credit record; OAuth state is excluded.",
 }
@@ -62,7 +61,7 @@ PROVIDER_SUMMARIES = {
     "cursor": "Live billing-cycle usage",
     "claude": "Plan limits or session context",
     "codex": "Rolling usage windows",
-    "github_copilot": "Monthly premium requests",
+    "github_copilot": "Local Copilot CLI AI-credit usage",
     "devin": "Quota and included usage",
     "antigravity": "Available AI credits",
 }
@@ -186,6 +185,8 @@ def _format_amount(window: Mapping[str, Any], percent: float | None) -> str:
         if percent is not None:
             return f"{_format_money(used)} · {percent:.0f}% used"
         return f"{_format_money(used)} used"
+    if unit == "ai_credits" and used is not None:
+        return f"{used:,.2f} used locally"
     if used is not None and limit is not None:
         return f"{used:g} of {limit:g}"
     if used is not None:
@@ -230,7 +231,13 @@ def display_from_snapshot(snapshot: ProviderSnapshot | Mapping[str, Any]) -> Pro
         )
     if not windows:
         return ProviderDisplay(provider_id, display_name, "no_data", "Waiting for data")
-    status_text = "Live API" if provider_id == "cursor" else "Live"
+    status_text = (
+        "Live API"
+        if provider_id == "cursor"
+        else "Local"
+        if provider_id == "github_copilot"
+        else "Live"
+    )
     collected_at = document.get("collected_at")
     if isinstance(collected_at, str):
         try:
@@ -313,14 +320,14 @@ class ProviderCollector:
                     hook_state = claude_status_line_state(widget_capture_argv())
                     if hook_state == "installed":
                         return ProviderDisplay(
-                            "claude", "Claude Code", "no_data", "Waiting for prompt"
+                            "claude", "Claude", "no_data", "Claude Code only"
                         )
                     if hook_state == "different":
                         return ProviderDisplay(
-                            "claude", "Claude Code", "no_data", "Existing hook"
+                            "claude", "Claude", "no_data", "Existing hook"
                         )
                     return ProviderDisplay(
-                        "claude", "Claude Code", "no_data", "Setup required"
+                        "claude", "Claude", "no_data", "Code setup required"
                     )
                 return display_from_snapshot(snapshot)
             if provider_id == "codex":
@@ -329,7 +336,7 @@ class ProviderCollector:
             if provider_id == "cursor":
                 return display_from_snapshot(read_cursor_usage())
             if provider_id == "github_copilot":
-                return display_from_snapshot(read_copilot_usage())
+                return display_from_snapshot(read_copilot_cli_usage())
             if provider_id == "devin":
                 return display_from_snapshot(read_devin_usage())
             if provider_id == "antigravity":
@@ -401,6 +408,7 @@ class UsageWidget:
         self.last_refresh_started = 0.0
         self.scroll_first = 0.0
         self.scroll_last = 1.0
+        self.compact_mode = False
         self.displays = {
             provider_id: (
                 disabled_display(provider_id)
@@ -424,7 +432,7 @@ class UsageWidget:
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
         self.root.geometry("472x620")
-        self.root.minsize(472, 560)
+        self.root.minsize(472, 300)
         if sys.platform == "darwin":
             try:
                 self.root.tk.call(
@@ -432,10 +440,11 @@ class UsageWidget:
                     "style",
                     self.root._w,
                     "utility",
-                    "closeBox",
+                    "closeBox collapseBox",
                 )
             except self.tk.TclError:
                 pass
+            self.root.bind("<Command-m>", lambda _event: self.root.iconify())
 
     def _font(self, size: int, weight: str = "normal") -> tuple[str, int, str]:
         return (self.font_family, size, weight)
@@ -473,6 +482,14 @@ class UsageWidget:
             compact=True,
             icon=True,
         ).pack(side="right", padx=(0, 5))
+        self.compact_button = self._button(
+            controls,
+            "−",
+            self.toggle_compact_mode,
+            compact=True,
+            icon=True,
+        )
+        self.compact_button.pack(side="right", padx=(0, 5))
         self.tk.Label(
             controls,
             textvariable=self.updated_text,
@@ -715,6 +732,39 @@ class UsageWidget:
         self.cards_canvas.yview_scroll(units, "units")
         return "break"
 
+    @staticmethod
+    def _progress_fill_width(width: float, used_percent: float) -> float:
+        safe_width = max(float(width), 0.0)
+        safe_percent = min(max(float(used_percent), 0.0), 100.0)
+        return safe_width * safe_percent / 100.0
+
+    def _draw_progress_bar(
+        self, canvas: Any, width: float, used_percent: float
+    ) -> None:
+        canvas.delete("progress")
+        safe_width = max(float(width), 1.0)
+        canvas.create_rectangle(
+            0,
+            0,
+            safe_width,
+            4,
+            fill=self.TRACK,
+            outline="",
+            tags="progress",
+        )
+        fill_width = self._progress_fill_width(safe_width, used_percent)
+        color = self.AMBER if used_percent >= 90 else self.ACCENT
+        if fill_width > 0:
+            canvas.create_rectangle(
+                0,
+                0,
+                fill_width,
+                4,
+                fill=color,
+                outline="",
+                tags="progress",
+            )
+
     def _bind_mousewheel_tree(self, widget: Any) -> None:
         tags = tuple(widget.bindtags())
         if self.SCROLL_BINDTAG not in tags:
@@ -785,7 +835,11 @@ class UsageWidget:
         for child in self.cards.winfo_children():
             child.destroy()
         for provider_id in PROVIDER_ORDER:
-            self._render_card(self.displays[provider_id])
+            display = self.displays[provider_id]
+            if self.compact_mode:
+                self._render_compact_card(display)
+            else:
+                self._render_card(display)
 
         def finish_layout() -> None:
             self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
@@ -793,6 +847,15 @@ class UsageWidget:
             self._bind_mousewheel_tree(self.cards_canvas)
 
         self.root.after_idle(finish_layout)
+
+    def toggle_compact_mode(self) -> None:
+        self.compact_mode = not self.compact_mode
+        self.compact_button.itemconfigure(
+            "button-text", text="+" if self.compact_mode else "−"
+        )
+        self.root.geometry("472x380" if self.compact_mode else "472x620")
+        self.cards_canvas.yview_moveto(0)
+        self._render_cards()
 
     def _request_render(self) -> None:
         if self.closed or self.render_job is not None:
@@ -857,10 +920,13 @@ class UsageWidget:
                 "Could not refresh. Your saved provider session was not changed."
             )
         if display.status == "no_data" and display.provider_id == "claude":
-            if display.status_text == "Setup required":
+            if display.status_text == "Code setup required":
                 return "Enable the Claude Code status-line capture to begin receiving usage."
-            if display.status_text == "Waiting for prompt":
-                return "Send a prompt in Claude Code. Free-tier accounts expose session context, not plan limits."
+            if display.status_text == "Claude Code only":
+                return (
+                    "Claude Desktop chats do not expose usage through this source. "
+                    "Only Claude Code status data can be captured safely."
+                )
             if display.status_text == "Existing hook":
                 return "Claude already has a different status line, so it was left unchanged."
             return "No plan limits were supplied. On the free tier, send another Claude Code prompt for session context."
@@ -868,9 +934,60 @@ class UsageWidget:
             return "Open Devin once to refresh its normalized local plan cache."
         if display.status == "no_data" and display.provider_id == "antigravity":
             return "Open Antigravity's usage/settings view to refresh its local cache."
+        if display.status == "no_data" and display.provider_id == "github_copilot":
+            return "Send a prompt in Copilot CLI, then refresh to read its local AI-credit total."
         if display.status == "no_data":
             return "The provider returned no supported usage measurements."
         return PROVIDER_SUMMARIES[display.provider_id]
+
+    @staticmethod
+    def _compact_summary(display: ProviderDisplay) -> str:
+        if not display.windows:
+            return display.status_text
+        window = display.windows[0]
+        if window.used_percent is not None:
+            return f"{max(100 - window.used_percent, 0):.0f}% left"
+        return window.amount_text
+
+    def _render_compact_card(self, display: ProviderDisplay) -> None:
+        card = self.tk.Frame(
+            self.cards,
+            bg=self.CARD,
+            highlightbackground=self.CARD_BORDER,
+            highlightthickness=1,
+        )
+        card.pack(fill="x", pady=2)
+        dot = self.tk.Canvas(
+            card,
+            width=10,
+            height=10,
+            bg=self.CARD,
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        dot.pack(side="left", padx=(10, 8), pady=10)
+        dot.create_oval(
+            1,
+            1,
+            9,
+            9,
+            fill=PROVIDER_COLORS[display.provider_id],
+            outline="",
+        )
+        self.tk.Label(
+            card,
+            text=display.display_name,
+            bg=self.CARD,
+            fg=self.TEXT,
+            font=self._font(9, "bold"),
+        ).pack(side="left")
+        self.tk.Label(
+            card,
+            text=self._compact_summary(display),
+            bg=self.CARD,
+            fg=self.GREEN if display.windows else self.MUTED,
+            font=self._font(8, "bold"),
+        ).pack(side="right", padx=10)
 
     def _render_card(self, display: ProviderDisplay) -> None:
         card = self.tk.Frame(
@@ -948,7 +1065,7 @@ class UsageWidget:
                 or (
                     display.status == "no_data"
                     and display.provider_id == "claude"
-                    and display.status_text == "Setup required"
+                    and display.status_text == "Code setup required"
                 )
             )
             self.tk.Label(
@@ -972,25 +1089,18 @@ class UsageWidget:
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
             elif display.status == "error":
-                requires_github_sign_in = (
-                    display.provider_id == "github_copilot"
-                    and display.status_text == "Sign-in required"
-                )
                 self._button(
                     detail_row,
-                    "Copy login" if requires_github_sign_in else "Retry",
-                    self.sign_in_github
-                    if requires_github_sign_in
-                    else lambda provider_id=display.provider_id: self.retry_provider(
+                    "Retry",
+                    lambda provider_id=display.provider_id: self.retry_provider(
                         provider_id
                     ),
-                    accent=requires_github_sign_in,
                     compact=True,
                 ).pack(side="right", padx=(8, 0))
             elif (
                 display.status == "no_data"
                 and display.provider_id == "claude"
-                and display.status_text == "Setup required"
+                and display.status_text == "Code setup required"
             ):
                 self._button(
                     detail_row,
@@ -1028,12 +1138,12 @@ class UsageWidget:
                     borderwidth=0,
                 )
                 bar.grid(row=0, column=1, sticky="ew", padx=(6, 10))
-                bar.update_idletasks()
-                width = max(bar.winfo_width(), 110)
-                bar.create_rectangle(0, 0, width, 4, fill=self.TRACK, outline="")
-                fill = width * window.used_percent / 100
-                color = self.AMBER if window.used_percent >= 90 else self.ACCENT
-                bar.create_rectangle(0, 0, fill, 4, fill=color, outline="")
+                bar.bind(
+                    "<Configure>",
+                    lambda event, canvas=bar, percent=window.used_percent: (
+                        self._draw_progress_bar(canvas, event.width, percent)
+                    ),
+                )
             self.tk.Label(
                 row,
                 text=window.amount_text,
@@ -1103,30 +1213,6 @@ class UsageWidget:
         self.root.after(
             self.RETRY_FEEDBACK_DELAY_MS,
             lambda: self._launch_provider_collection(provider_id),
-        )
-
-    def sign_in_github(self) -> None:
-        if self.closed:
-            return
-        try:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(GITHUB_LOGIN_COMMAND)
-            self.root.update_idletasks()
-        except self.tk.TclError:
-            self.messagebox.showerror(
-                "Could not copy GitHub login command",
-                "Open a terminal and run:\n\n" + GITHUB_LOGIN_COMMAND,
-                parent=self.root,
-            )
-            return
-        self.updated_text.set("GitHub login command copied")
-        self.messagebox.showinfo(
-            "GitHub login command copied",
-            "Paste the copied command into a terminal and complete GitHub's browser "
-            "authorization. GitHub CLI controls credential storage; this tracker "
-            "never receives the token.\n\nReturn here and click the refresh icon when "
-            "sign-in is complete.",
-            parent=self.root,
         )
 
     def _launch_provider_collection(self, provider_id: str) -> None:

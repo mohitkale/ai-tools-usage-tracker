@@ -11,7 +11,9 @@ from ai_usage_tracker.providers.github_copilot import GitHubCopilotProbeError
 from ai_usage_tracker.widget import (
     PROVIDER_ORDER,
     ProviderCollector,
+    ProviderDisplay,
     UsageWidget,
+    WindowDisplay,
     disabled_display,
     display_from_snapshot,
     error_display,
@@ -20,32 +22,21 @@ from ai_usage_tracker.widget import (
 
 
 class WidgetFormattingTests(unittest.TestCase):
-    def test_github_sign_in_copies_a_visible_terminal_command(self) -> None:
-        updates = []
-        clipboard = []
-        messages = []
-        widget = UsageWidget.__new__(UsageWidget)
-        widget.closed = False
-        widget.in_progress = set()
-        widget.displays = {"github_copilot": error_display("github_copilot")}
-        widget.updated_text = SimpleNamespace(set=updates.append)
-        widget.tk = SimpleNamespace(TclError=RuntimeError)
-        widget.messagebox = SimpleNamespace(
-            showinfo=lambda *args, **kwargs: messages.append(args),
-            showerror=lambda *args, **kwargs: None,
-        )
-        widget.root = SimpleNamespace(
-            clipboard_clear=lambda: clipboard.clear(),
-            clipboard_append=clipboard.append,
-            update_idletasks=lambda: None,
+    def test_progress_width_maps_percentage_exactly(self) -> None:
+        self.assertEqual(UsageWidget._progress_fill_width(400, 76), 304)
+        self.assertEqual(UsageWidget._progress_fill_width(400, -10), 0)
+        self.assertEqual(UsageWidget._progress_fill_width(400, 150), 400)
+
+    def test_compact_summary_reports_remaining_percentage(self) -> None:
+        display = ProviderDisplay(
+            "codex",
+            "Codex",
+            "available",
+            "Live",
+            (WindowDisplay("7 day", 76, "76% used", None),),
         )
 
-        widget.sign_in_github()
-
-        self.assertEqual(len(clipboard), 1)
-        self.assertIn("gh auth login", clipboard[0])
-        self.assertEqual(updates, ["GitHub login command copied"])
-        self.assertEqual(len(messages), 1)
+        self.assertEqual(UsageWidget._compact_summary(display), "24% left")
 
     def test_retry_bypasses_global_cooldown_and_shows_immediate_feedback(self) -> None:
         scheduled = []
@@ -155,7 +146,7 @@ class WidgetFormattingTests(unittest.TestCase):
                 "windows": [],
             }
         )
-        self.assertEqual(display.display_name, "Claude Code")
+        self.assertEqual(display.display_name, "Claude")
         self.assertEqual(display.status_text, "Unavailable")
         self.assertNotIn("CANARY", repr(display))
 
@@ -183,27 +174,23 @@ class WidgetFormattingTests(unittest.TestCase):
 class WidgetCollectorTests(unittest.TestCase):
     def test_known_github_failure_returns_static_safe_guidance(self) -> None:
         with patch(
-            "ai_usage_tracker.widget.read_copilot_usage",
-            side_effect=GitHubCopilotProbeError("GitHub CLI was not found"),
+            "ai_usage_tracker.widget.read_copilot_cli_usage",
+            side_effect=GitHubCopilotProbeError(
+                "Copilot CLI local usage could not be read safely"
+            ),
         ):
             display = ProviderCollector().collect("github_copilot")
 
         self.assertEqual(display.status, "error")
-        self.assertEqual(display.detail, "Install GitHub CLI and sign in, then retry.")
-
-    def test_github_sign_in_failure_has_an_explicit_status(self) -> None:
-        with patch(
-            "ai_usage_tracker.widget.read_copilot_usage",
-            side_effect=GitHubCopilotProbeError("GitHub CLI is not signed in"),
-        ):
-            display = ProviderCollector().collect("github_copilot")
-
-        self.assertEqual(display.status_text, "Sign-in required")
-        self.assertIn("Use Copy login", display.detail)
+        self.assertEqual(display.status_text, "Local data unavailable")
+        self.assertEqual(
+            display.detail,
+            "The Copilot CLI usage database could not be opened read-only.",
+        )
 
     def test_unexpected_github_failure_does_not_reach_the_ui(self) -> None:
         with patch(
-            "ai_usage_tracker.widget.read_copilot_usage",
+            "ai_usage_tracker.widget.read_copilot_cli_usage",
             side_effect=RuntimeError("CANARY_SECRET provider output"),
         ):
             display = ProviderCollector().collect("github_copilot")
@@ -221,7 +208,7 @@ class WidgetCollectorTests(unittest.TestCase):
             ):
                 display = ProviderCollector(Path(directory)).collect("claude")
         self.assertEqual(display.status, "no_data")
-        self.assertEqual(display.status_text, "Setup required")
+        self.assertEqual(display.status_text, "Code setup required")
 
 
 if __name__ == "__main__":

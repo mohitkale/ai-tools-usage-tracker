@@ -52,7 +52,8 @@ The widget currently supports:
 - Cursor total usage plus total, Auto, and API percentages and reset time.
 - Codex rate-limit windows, percentages, and reset times.
 - Claude Code windows captured by the one-click official status-line hook.
-- GitHub Copilot premium-request totals through the official signed-in `gh` CLI.
+- GitHub Copilot CLI's aggregate local AI-credit usage from its read-only event
+  database.
 - Devin daily, weekly, and included usage from its exact normalized plan cache.
 - Antigravity's available AI credits from its exact local model-credit cache.
 
@@ -63,6 +64,21 @@ Claude Code supplies 5-hour and 7-day subscription limits only for Pro/Max
 accounts. On the free tier, the same local hook displays the current session's
 context-window percentage after the next Claude Code assistant response. Merely
 opening Claude or this widget does not trigger a status-line update.
+
+Claude Desktop Chat does not publish this status-line payload or a reviewed
+local quota interface. Its card therefore says **Claude Code only** instead of
+implying that a Desktop prompt should update it. The tracker does not inspect
+Claude Desktop conversations, cookies, or credentials.
+
+Copilot CLI records exact per-request AI-credit values in its own local event
+database. The tracker totals only that numeric column and shows usage generated
+on this machine. This is not an account balance: Copilot CLI does not currently
+offer a reviewed non-interactive interface for retrieving an individual plan's
+remaining allowance.
+
+The header's minus button switches to a compact view with one balance summary
+per provider; the plus button restores the detailed cards. Native window
+minimize remains available, including Command-M on macOS.
 
 Its exact local data flow and retained settings are documented in
 [docs/widget-security.md](docs/widget-security.md).

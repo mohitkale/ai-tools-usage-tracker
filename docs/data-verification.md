@@ -92,10 +92,17 @@ default; a Cursor schema or authentication change must fail closed.
 
 ### GitHub Copilot
 
-The adapter calls GitHub's personal premium-request billing endpoint through
-the official `gh` process. It needs a `gh` login with read access to the user's
-Plan data. The current machine has `gh` installed but not signed in, so the
-adapter was parser/process tested and correctly fails closed until login.
+The installed official Copilot CLI was verified to record exact numeric
+AI-credit values in `~/.copilot/session-store.db`. The adapter opens that
+database read-only/query-only and runs one aggregate query over
+`assistant_usage_events`: `COUNT(*)`, `SUM(total_nano_aiu)`, and
+`MAX(created_at)`. It never selects prompt text, session identifiers, model
+names, token counts, logs, configuration, or credentials.
+
+The live probe on this machine returned one normalized local usage value after
+a Copilot CLI prompt. It does not claim to be the user's remaining plan balance:
+Copilot CLI's account `/usage` view is interactive, and no reviewed
+non-interactive individual-account quota interface is used by this project.
 
 ### Devin
 

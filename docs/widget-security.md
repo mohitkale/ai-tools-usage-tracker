@@ -42,17 +42,19 @@ raw exception messages are never passed through to the interface.
 - **Claude Code:** reads only the normalized app-owned snapshot. With explicit
   confirmation, the widget adds its capture command only when no status line
   exists; unrelated settings are preserved and raw status JSON is not retained.
+  Claude Desktop Chat does not expose this payload, so the widget does not read
+  its chats, cookies, credentials, or other local state.
 - **Codex:** starts the reviewed official local app-server with analytics
   disabled. Codex retains control of its own authentication.
 - **Cursor:** reads only `cursorAuth/accessToken` from Cursor's SQLite state in
   read-only/query-only mode and sends an empty usage request only to the pinned
   `api2.cursor.sh` endpoint.
-- **GitHub Copilot:** starts the official `gh` process and requests the personal
-  premium-request usage report. Authentication and GitHub network access remain
-  inside `gh`; the widget does not receive its token or retain the username. The
-  widget can copy a fixed `gh auth login` command, but deliberately does not run
-  a hidden interactive login process. The user runs and observes authentication
-  in their terminal, where GitHub CLI explains and controls credential storage.
+- **GitHub Copilot:** opens only `~/.copilot/session-store.db` in SQLite
+  read-only/query-only mode and selects `COUNT(*)`, `SUM(total_nano_aiu)`, and
+  `MAX(created_at)` from `assistant_usage_events`. It does not select prompt
+  text, session identifiers, model names, token counts, logs, configuration, or
+  credentials. The result is local Copilot CLI consumption, not an account plan
+  balance, and the widget performs no GitHub network request.
 - **Devin:** selects only `windsurf.settings.cachedPlanInfo` from Devin's local
   SQLite database in read-only/query-only mode. Auth and session rows are not
   selected.

@@ -34,14 +34,14 @@
       "display_name": "GitHub Copilot",
       "stability": "experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "local_process", "delegated_provider_network"],
-      "credential_access": "delegated_to_official_process",
+      "permissions": ["local_metadata", "local_payload"],
+      "credential_access": "none",
       "network_hosts": [],
       "discovery": {
-        "executables": ["gh"],
-        "paths": []
+        "executables": ["copilot"],
+        "paths": ["~/.copilot/session-store.db"]
       },
-      "notes": "Uses the official GitHub CLI to call the personal premium-request billing endpoint; the app never reads or stores gh credentials."
+      "notes": "Reads only COUNT, SUM(total_nano_aiu), and MAX(created_at) from the official Copilot CLI event database in read-only/query-only mode; prompts, sessions, logs, config, and credentials are never selected."
     },
     {
       "id": "devin",
