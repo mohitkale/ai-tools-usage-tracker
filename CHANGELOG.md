@@ -8,6 +8,8 @@ published.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-24
+
 ### Added
 
 - Offline in-memory demo mode with synthetic data for every supported provider.
@@ -28,3 +30,6 @@ published.
 
 - Demo mode cannot read provider files, launch provider processes, access the
   network, or persist settings.
+
+[Unreleased]: https://github.com/mohitkale/ai-tools-usage-tracker/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mohitkale/ai-tools-usage-tracker/releases/tag/v0.1.0
