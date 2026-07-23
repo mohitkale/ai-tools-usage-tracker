@@ -1451,14 +1451,19 @@ def run_widget(data_dir: Path | None = None, *, smoke_test: bool = False) -> Non
         raise WidgetRuntimeError("The desktop display is unavailable.") from exc
     settings_store = WidgetSettingsStore(data_dir)
     collector = ProviderCollector(data_dir)
-    UsageWidget(root, tk, ttk, messagebox, settings_store, collector)
+    widget = UsageWidget(root, tk, ttk, messagebox, settings_store, collector)
     if smoke_test:
         def finish_smoke_test() -> None:
             root.update_idletasks()
-            size = f"widget-rendered {root.winfo_width()}x{root.winfo_height()}"
+            normal_size = f"{root.winfo_width()}x{root.winfo_height()}"
+            widget.toggle_compact_mode()
+            root.update_idletasks()
+            compact_size = f"{root.winfo_width()}x{root.winfo_height()}"
             root.destroy()
             if sys.stdout is not None:
-                print(size)
+                print(
+                    f"widget-rendered normal={normal_size} compact={compact_size}"
+                )
 
         root.after(350, finish_smoke_test)
     root.mainloop()
