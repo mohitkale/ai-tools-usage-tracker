@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ..model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus, utc_now
+from ..security import absolute_environment_path
 
 
 DEVIN_PLAN_KEY = "windsurf.settings.cachedPlanInfo"
@@ -32,11 +33,11 @@ def default_devin_database() -> Path:
             / "state.vscdb"
         )
     if os.name == "nt":
-        app_data = os.environ.get("APPDATA")
-        base = Path(app_data) if app_data else Path.home() / "AppData" / "Roaming"
+        base = absolute_environment_path("APPDATA")
+        if base is None:
+            base = Path.home() / "AppData" / "Roaming"
         return base / "Devin" / "User" / "globalStorage" / "state.vscdb"
-    config_home = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(config_home) if config_home else Path.home() / ".config"
+    base = absolute_environment_path("XDG_CONFIG_HOME") or Path.home() / ".config"
     return base / "Devin" / "User" / "globalStorage" / "state.vscdb"
 
 
@@ -173,7 +174,7 @@ def parse_cached_plan(
             provider_id="devin",
             display_name="Devin",
             status=SnapshotStatus.NO_DATA,
-            source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+            source=DataSource.PRIVATE_LOCAL_STATE,
             collected_at=now,
             message="Devin has not cached supported plan usage.",
         )
@@ -181,7 +182,7 @@ def parse_cached_plan(
         provider_id="devin",
         display_name="Devin",
         status=SnapshotStatus.AVAILABLE,
-        source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+        source=DataSource.PRIVATE_LOCAL_STATE,
         collected_at=now,
         windows=tuple(windows),
     )

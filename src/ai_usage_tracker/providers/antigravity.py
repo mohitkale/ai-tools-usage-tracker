@@ -10,6 +10,7 @@ from typing import Iterator
 from urllib.parse import quote
 
 from ..model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus, utc_now
+from ..security import absolute_environment_path
 
 
 MODEL_CREDITS_KEY = "antigravityUnifiedStateSync.modelCredits"
@@ -34,11 +35,11 @@ def default_antigravity_database() -> Path:
             / "state.vscdb"
         )
     if os.name == "nt":
-        app_data = os.environ.get("APPDATA")
-        base = Path(app_data) if app_data else Path.home() / "AppData" / "Roaming"
+        base = absolute_environment_path("APPDATA")
+        if base is None:
+            base = Path.home() / "AppData" / "Roaming"
         return base / "Antigravity" / "User" / "globalStorage" / "state.vscdb"
-    config_home = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(config_home) if config_home else Path.home() / ".config"
+    base = absolute_environment_path("XDG_CONFIG_HOME") or Path.home() / ".config"
     return base / "Antigravity" / "User" / "globalStorage" / "state.vscdb"
 
 
@@ -171,7 +172,7 @@ def parse_model_credits(
             provider_id="antigravity",
             display_name="Antigravity",
             status=SnapshotStatus.NO_DATA,
-            source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+            source=DataSource.PRIVATE_LOCAL_STATE,
             collected_at=now,
             message="Antigravity has not cached available AI credits.",
         )
@@ -179,7 +180,7 @@ def parse_model_credits(
         provider_id="antigravity",
         display_name="Antigravity",
         status=SnapshotStatus.AVAILABLE,
-        source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+        source=DataSource.PRIVATE_LOCAL_STATE,
         collected_at=now,
         windows=(
             QuotaWindow(

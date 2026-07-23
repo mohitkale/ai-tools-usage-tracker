@@ -10,7 +10,7 @@ import tempfile
 from typing import Any
 
 from .model import ProviderSnapshot
-from .security import redact
+from .security import absolute_environment_path, redact
 
 
 MAX_SNAPSHOT_BYTES = 256 * 1024
@@ -32,13 +32,13 @@ def default_data_dir() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "AI Usage Tracker"
     if os.name == "nt":
-        base = os.environ.get("LOCALAPPDATA")
-        if base:
-            return Path(base) / "AI Usage Tracker"
+        base = absolute_environment_path("LOCALAPPDATA")
+        if base is not None:
+            return base / "AI Usage Tracker"
         return Path.home() / "AppData" / "Local" / "AI Usage Tracker"
-    xdg_data = os.environ.get("XDG_DATA_HOME")
-    if xdg_data and Path(xdg_data).is_absolute():
-        return Path(xdg_data) / "ai-usage-tracker"
+    xdg_data = absolute_environment_path("XDG_DATA_HOME")
+    if xdg_data is not None:
+        return xdg_data / "ai-usage-tracker"
     return Path.home() / ".local" / "share" / "ai-usage-tracker"
 
 

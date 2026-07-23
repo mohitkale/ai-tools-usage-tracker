@@ -13,6 +13,7 @@ from typing import Any, Iterator
 from urllib.parse import quote
 
 from ..model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus, utc_now
+from ..security import absolute_environment_path
 
 
 CURSOR_HOST = "api2.cursor.sh"
@@ -40,20 +41,23 @@ def default_cursor_database() -> Path:
             / "state.vscdb"
         )
     if os.name == "nt":
-        app_data = os.environ.get("APPDATA")
-        base = Path(app_data) if app_data else Path.home() / "AppData" / "Roaming"
+        base = absolute_environment_path("APPDATA")
+        if base is None:
+            base = Path.home() / "AppData" / "Roaming"
         return base / "Cursor" / "User" / "globalStorage" / "state.vscdb"
-    config_home = os.environ.get("XDG_CONFIG_HOME")
-    base = (
-        Path(config_home)
-        if config_home and Path(config_home).is_absolute()
-        else Path.home() / ".config"
-    )
+    base = absolute_environment_path("XDG_CONFIG_HOME") or Path.home() / ".config"
     return base / "Cursor" / "User" / "globalStorage" / "state.vscdb"
 
 
 def _read_cursor_access_token(database: Path) -> str:
-    resolved = database.expanduser().resolve()
+    if database.is_symlink():
+        raise CursorProbeError("Cursor's local state database is a symlink")
+    try:
+        resolved = database.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise CursorProbeError(
+            "Cursor's local state database was not found"
+        ) from exc
     if not resolved.is_file():
         raise CursorProbeError("Cursor's local state database was not found")
     database_uri = f"file:{quote(str(resolved), safe='/:')}?mode=ro"

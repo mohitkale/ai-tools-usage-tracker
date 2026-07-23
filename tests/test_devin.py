@@ -7,7 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from ai_usage_tracker.model import SnapshotStatus
+from ai_usage_tracker.model import DataSource, SnapshotStatus
 from ai_usage_tracker.providers.devin import DEVIN_PLAN_KEY, parse_cached_plan, read_devin_usage
 
 
@@ -37,6 +37,7 @@ class DevinUsageTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot.status, SnapshotStatus.AVAILABLE)
+        self.assertEqual(snapshot.source, DataSource.PRIVATE_LOCAL_STATE)
         self.assertEqual(snapshot.windows[0].used_percent, 25)
         self.assertEqual(snapshot.windows[1].used_percent, 60)
         self.assertEqual(snapshot.windows[2].used, 250)

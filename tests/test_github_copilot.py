@@ -53,7 +53,7 @@ class GitHubCopilotLocalUsageTests(unittest.TestCase):
             snapshot = read_copilot_cli_usage(database)
 
         self.assertEqual(snapshot.status, SnapshotStatus.AVAILABLE)
-        self.assertEqual(snapshot.source, DataSource.OFFICIAL_LOCAL_PAYLOAD)
+        self.assertEqual(snapshot.source, DataSource.PRIVATE_LOCAL_STATE)
         self.assertEqual(snapshot.windows[0].used, 1)
         self.assertEqual(
             snapshot.collected_at.isoformat(), "2026-07-23T13:29:00+00:00"

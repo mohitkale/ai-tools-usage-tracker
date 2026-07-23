@@ -14,6 +14,7 @@ import time
 from typing import Any, BinaryIO
 
 from ..model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus, utc_now
+from ..security import absolute_environment_path
 
 
 MAX_PROTOCOL_LINE_BYTES = 1024 * 1024
@@ -228,10 +229,10 @@ def _wait_for_response(
 def _automatic_codex_candidates() -> tuple[Path, ...]:
     candidates: list[Path] = []
 
-    install_dir = os.environ.get("CODEX_INSTALL_DIR")
+    install_dir = absolute_environment_path("CODEX_INSTALL_DIR")
     if install_dir:
         executable_name = "codex.exe" if os.name == "nt" else "codex"
-        candidates.append(Path(install_dir).expanduser() / executable_name)
+        candidates.append(install_dir / executable_name)
 
     home = Path.home()
     if sys.platform == "darwin":
@@ -243,10 +244,15 @@ def _automatic_codex_candidates() -> tuple[Path, ...]:
             )
         )
     elif os.name == "nt":
-        local_app_data = os.environ.get("LOCALAPPDATA")
+        local_app_data = absolute_environment_path("LOCALAPPDATA")
         if local_app_data:
             candidates.append(
-                Path(local_app_data) / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe"
+                local_app_data
+                / "Programs"
+                / "OpenAI"
+                / "Codex"
+                / "bin"
+                / "codex.exe"
             )
     else:
         candidates.append(home / ".local" / "bin" / "codex")

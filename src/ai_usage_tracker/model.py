@@ -19,6 +19,7 @@ class DataSource(StrEnum):
     OFFICIAL_LOCAL_PAYLOAD = "official_local_payload"
     OFFICIAL_LOCAL_PROCESS = "official_local_process"
     OFFICIAL_PROVIDER_API = "official_provider_api"
+    PRIVATE_LOCAL_STATE = "private_local_state"
     PRIVATE_PROVIDER_API = "private_provider_api"
 
 

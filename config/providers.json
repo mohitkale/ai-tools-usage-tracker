@@ -11,7 +11,10 @@
       "network_hosts": [],
       "discovery": {
         "executables": ["claude"],
-        "paths": []
+        "paths": [
+          "all:~/.claude/settings.json",
+          "app-data:snapshots/claude.json"
+        ]
       },
       "notes": "Consumes official status-line JSON supplied over stdin; it does not read Claude credentials."
     },
@@ -32,28 +35,34 @@
     {
       "id": "github_copilot",
       "display_name": "GitHub Copilot",
-      "stability": "experimental",
+      "stability": "private_experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "local_payload"],
+      "permissions": ["local_metadata", "private_state"],
       "credential_access": "none",
       "network_hosts": [],
       "discovery": {
         "executables": ["copilot"],
-        "paths": ["~/.copilot/session-store.db"]
+        "paths": [
+          "all:${COPILOT_HOME:-~/.copilot}/session-store.db"
+        ]
       },
-      "notes": "Reads only COUNT, SUM(total_nano_aiu), and MAX(created_at) from the official Copilot CLI event database in read-only/query-only mode; prompts, sessions, logs, config, and credentials are never selected."
+      "notes": "Reads only COUNT, SUM(total_nano_aiu), and MAX(created_at) from Copilot CLI's undocumented event database in read-only/query-only mode; prompts, sessions, logs, config, and credentials are never selected."
     },
     {
       "id": "devin",
       "display_name": "Devin",
-      "stability": "experimental",
+      "stability": "private_experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "local_payload"],
+      "permissions": ["local_metadata", "private_state"],
       "credential_access": "none",
       "network_hosts": [],
       "discovery": {
         "executables": [],
-        "paths": []
+        "paths": [
+          "macOS:~/Library/Application Support/Devin/User/globalStorage/state.vscdb",
+          "Windows:%APPDATA%/Devin/User/globalStorage/state.vscdb",
+          "Linux:${XDG_CONFIG_HOME:-~/.config}/Devin/User/globalStorage/state.vscdb"
+        ]
       },
       "notes": "Reads only windsurf.settings.cachedPlanInfo from Devin's local state database in read-only mode; auth and session records are never selected."
     },
@@ -67,21 +76,29 @@
       "network_hosts": ["api2.cursor.sh"],
       "discovery": {
         "executables": ["cursor"],
-        "paths": []
+        "paths": [
+          "macOS:~/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+          "Windows:%APPDATA%/Cursor/User/globalStorage/state.vscdb",
+          "Linux:${XDG_CONFIG_HOME:-~/.config}/Cursor/User/globalStorage/state.vscdb"
+        ]
       },
       "notes": "Explicit opt-in reads only cursorAuth/accessToken from Cursor/User/globalStorage/state.vscdb in read-only mode, calls only the official api2.cursor.sh usage RPC, and retains only normalized quota fields."
     },
     {
       "id": "antigravity",
       "display_name": "Antigravity",
-      "stability": "experimental",
+      "stability": "private_experimental",
       "enabled_by_default": false,
-      "permissions": ["local_metadata", "local_payload"],
+      "permissions": ["local_metadata", "private_state"],
       "credential_access": "none",
       "network_hosts": [],
       "discovery": {
         "executables": ["antigravity"],
-        "paths": []
+        "paths": [
+          "macOS:~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb",
+          "Windows:%APPDATA%/Antigravity/User/globalStorage/state.vscdb",
+          "Linux:${XDG_CONFIG_HOME:-~/.config}/Antigravity/User/globalStorage/state.vscdb"
+        ]
       },
       "notes": "Reads only antigravityUnifiedStateSync.modelCredits from the local state database in read-only mode; the OAuth record is never selected."
     }

@@ -53,9 +53,9 @@ PROVIDER_DESCRIPTIONS = {
     "cursor": "Reads one exact Cursor session record and sends it only to Cursor's usage RPC.",
     "claude": "Reads only the normalized local status snapshot; no credential or network access.",
     "codex": "Starts the official local Codex process; Codex keeps control of its own login.",
-    "github_copilot": "Reads only numeric AI-credit totals recorded by the official Copilot CLI.",
-    "devin": "Reads only Devin's normalized cached plan record; authentication records are excluded.",
-    "antigravity": "Reads only Antigravity's cached model-credit record; OAuth state is excluded.",
+    "github_copilot": "Reads only aggregate AI-credit totals from Copilot CLI's undocumented local event database; credentials and prompts are excluded.",
+    "devin": "Reads only Devin's undocumented normalized plan cache; authentication records are excluded.",
+    "antigravity": "Reads only Antigravity's undocumented model-credit cache; OAuth state is excluded.",
 }
 PROVIDER_SUMMARIES = {
     "cursor": "Live billing-cycle usage",

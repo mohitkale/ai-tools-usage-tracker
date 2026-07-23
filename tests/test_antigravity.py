@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import unittest
 
+from ai_usage_tracker.model import DataSource
 from ai_usage_tracker.providers.antigravity import (
     MODEL_CREDITS_KEY,
     parse_model_credits,
@@ -47,6 +48,7 @@ class AntigravityUsageTests(unittest.TestCase):
             collected_at=datetime(2026, 7, 23, tzinfo=UTC),
         )
         self.assertEqual(snapshot.windows[0].remaining, 1000)
+        self.assertEqual(snapshot.source, DataSource.PRIVATE_LOCAL_STATE)
         self.assertNotIn("CANARY", json.dumps(snapshot.to_dict()))
 
     def test_reads_only_exact_model_credit_key(self) -> None:

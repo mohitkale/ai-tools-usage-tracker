@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import shlex
 import stat
-import subprocess
 import sys
 import tempfile
 from typing import Any, Literal, Sequence
@@ -39,7 +38,18 @@ def format_status_command(argv: Sequence[str]) -> str:
     if any(any(character in value for character in "\r\n\0") for value in argv):
         raise ValueError("Claude capture command is invalid")
     if os.name == "nt":
-        return subprocess.list2cmdline(list(argv))
+        # Claude runs status commands through Git Bash when present and
+        # PowerShell otherwise. Calling PowerShell explicitly makes a quoted
+        # frozen-app path work consistently in both environments.
+        if any('"' in value for value in argv):
+            raise ValueError("Claude capture command is invalid")
+        powershell_arguments = " ".join(
+            f"'{value.replace(chr(39), chr(39) * 2)}'" for value in argv
+        )
+        return (
+            "powershell -NoProfile -NonInteractive -Command "
+            f'"& {powershell_arguments}"'
+        )
     return shlex.join(argv)
 
 

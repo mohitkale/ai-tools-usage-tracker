@@ -186,6 +186,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                             "permissions": sorted(provider.permissions),
                             "credential_access": provider.credential_access,
                             "network_hosts": list(provider.network_hosts),
+                            "executables": list(provider.executables),
+                            "paths": list(provider.paths),
                         }
                         for provider in providers
                     ],

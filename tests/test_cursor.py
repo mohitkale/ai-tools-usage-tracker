@@ -155,6 +155,17 @@ class CursorCredentialTests(unittest.TestCase):
             self.assertEqual(token, "CANARY_SECRET_CURSOR_ACCESS_TOKEN")
             self.assertEqual(before, after)
 
+    def test_rejects_a_symlinked_cursor_database(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "real.vscdb"
+            database.write_bytes(b"not opened")
+            link = root / "state.vscdb"
+            link.symlink_to(database)
+
+            with self.assertRaisesRegex(Exception, "symlink"):
+                _read_cursor_access_token(link)
+
     def test_request_is_pinned_to_cursor_rpc_and_uses_empty_body(self) -> None:
         class FakeResponse:
             status = 200

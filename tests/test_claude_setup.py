@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from ai_usage_tracker.providers.claude_setup import (
     ClaudeSetupError,
@@ -66,3 +67,15 @@ class ClaudeSetupTests(unittest.TestCase):
 
             with self.assertRaises(ClaudeSetupError):
                 install_claude_status_line(("tracker", "--claude-capture"), link)
+
+    def test_windows_status_command_runs_through_powershell(self) -> None:
+        with patch("ai_usage_tracker.providers.claude_setup.os.name", "nt"):
+            command = format_status_command(
+                (r"C:\Program Files\AI Usage Tracker.exe", "--claude-capture")
+            )
+
+        self.assertEqual(
+            command,
+            "powershell -NoProfile -NonInteractive -Command "
+            '"& \'C:\\Program Files\\AI Usage Tracker.exe\' \'--claude-capture\'"',
+        )

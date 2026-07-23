@@ -19,6 +19,7 @@ class DiscoveryTests(TestCase):
             credential_access="none",
             network_hosts=(),
             executables=("example-cli",),
+            paths=(),
             executable_role="provider",
             notes="test",
         )
@@ -40,6 +41,7 @@ class DiscoveryTests(TestCase):
             credential_access="none",
             network_hosts=(),
             executables=("host-editor",),
+            paths=(),
             executable_role="host",
             notes="test",
         )
@@ -60,6 +62,7 @@ class DiscoveryTests(TestCase):
             credential_access="delegated_to_official_process",
             network_hosts=(),
             executables=("codex",),
+            paths=(),
             executable_role="provider",
             notes="test",
         )

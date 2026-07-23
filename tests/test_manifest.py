@@ -22,7 +22,18 @@ class ManifestTests(unittest.TestCase):
             if provider.network_hosts:
                 self.assertIn("provider_network", provider.permissions)
 
+    def test_every_local_state_adapter_declares_its_exact_paths(self) -> None:
+        providers = {provider.id: provider for provider in load_manifest()}
+
+        for provider_id in (
+            "claude",
+            "cursor",
+            "devin",
+            "antigravity",
+            "github_copilot",
+        ):
+            self.assertTrue(providers[provider_id].paths)
+
 
 if __name__ == "__main__":
     unittest.main()
-

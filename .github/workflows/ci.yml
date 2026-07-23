@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+        env:
+          PYTHONPATH: src
+      - name: Compile all Python sources
+        run: python -m compileall -q src scripts tests
+      - name: Audit repository security
+        run: python scripts/security_audit.py
+
+  package-windows:
+    name: Package Windows
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned build dependency
+        run: python -m pip install -r requirements-build.txt
+      - name: Build Windows application
+        run: python scripts/build_app.py
+      - name: Smoke-test packaged application
+        shell: pwsh
+        run: |
+          & ".\dist\AI Usage Tracker\AI Usage Tracker.exe" `
+            --smoke-test `
+            --data-dir "$env:RUNNER_TEMP\ai-usage-tracker-smoke"
+      - name: Upload Windows bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ai-usage-tracker-windows
+          path: dist/AI Usage Tracker
+          if-no-files-found: error
+
+  package-ubuntu:
+    name: Package Ubuntu
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install system Tk and virtualenv support
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes python3-tk python3-venv xvfb
+      - name: Create isolated build environment
+        run: |
+          python3 -m venv .venv-build
+          .venv-build/bin/python -m pip install -r requirements-build.txt
+      - name: Build Ubuntu application
+        run: xvfb-run --auto-servernum .venv-build/bin/python scripts/build_app.py
+      - name: Smoke-test packaged application
+        run: |
+          xvfb-run --auto-servernum \
+            "dist/AI Usage Tracker/AI Usage Tracker" \
+            --smoke-test \
+            --data-dir "$RUNNER_TEMP/ai-usage-tracker-smoke"
+      - name: Upload Ubuntu bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ai-usage-tracker-ubuntu
+          path: dist/AI Usage Tracker
+          if-no-files-found: error

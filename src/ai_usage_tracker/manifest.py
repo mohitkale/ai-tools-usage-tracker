@@ -27,6 +27,7 @@ class ProviderManifest:
     credential_access: str
     network_hosts: tuple[str, ...]
     executables: tuple[str, ...]
+    paths: tuple[str, ...]
     executable_role: str
     notes: str
 
@@ -70,9 +71,20 @@ def load_manifest(path: Path | None = None) -> tuple[ProviderManifest, ...]:
             raise ValueError(f"{provider_id} declares hosts without network permission")
 
         discovery = item.get("discovery", {})
+        if not isinstance(discovery, dict):
+            raise ValueError(f"invalid discovery declaration for {provider_id}")
         executable_role = discovery.get("executable_role", "provider")
         if executable_role not in {"provider", "host"}:
             raise ValueError(f"invalid executable role for {provider_id}")
+        executables = discovery.get("executables", [])
+        paths = discovery.get("paths", [])
+        if (
+            not isinstance(executables, list)
+            or not all(isinstance(value, str) and value for value in executables)
+            or not isinstance(paths, list)
+            or not all(isinstance(value, str) and value for value in paths)
+        ):
+            raise ValueError(f"invalid discovery resources for {provider_id}")
 
         providers.append(
             ProviderManifest(
@@ -85,7 +97,8 @@ def load_manifest(path: Path | None = None) -> tuple[ProviderManifest, ...]:
                     item.get("credential_access"), "credential_access"
                 ),
                 network_hosts=network_hosts,
-                executables=tuple(discovery.get("executables", [])),
+                executables=tuple(executables),
+                paths=tuple(paths),
                 executable_role=executable_role,
                 notes=_required_string(item.get("notes"), "notes"),
             )

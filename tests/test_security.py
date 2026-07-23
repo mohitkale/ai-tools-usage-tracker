@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 import unittest
+from unittest.mock import patch
 
-from ai_usage_tracker.security import redact, validate_official_url, validate_redirect
+from ai_usage_tracker.security import (
+    absolute_environment_path,
+    redact,
+    validate_official_url,
+    validate_redirect,
+)
 
 
 class RedactionTests(unittest.TestCase):
@@ -18,6 +25,25 @@ class RedactionTests(unittest.TestCase):
         serialized = json.dumps(redact(value))
         self.assertNotIn("CANARY_SECRET", serialized)
         self.assertGreaterEqual(serialized.count("[REDACTED]"), 3)
+
+    def test_redacts_provider_specific_keys_and_jwts(self) -> None:
+        value = {
+            "cursorAuth/accessToken": "CANARY_SECRET_CURSOR",
+            "message": (
+                "failed with "
+                "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJDQU5BUllfU0VDUkVUIn0."
+                "c2lnbmF0dXJlMTIz"
+            ),
+        }
+
+        serialized = json.dumps(redact(value))
+
+        self.assertNotIn("CANARY_SECRET", serialized)
+        self.assertNotIn("eyJ", serialized)
+
+    def test_ignores_relative_environment_directories(self) -> None:
+        with patch.dict(os.environ, {"XDG_CONFIG_HOME": "relative/config"}):
+            self.assertIsNone(absolute_environment_path("XDG_CONFIG_HOME"))
 
 
 class NetworkPolicyTests(unittest.TestCase):
@@ -52,4 +78,3 @@ class NetworkPolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

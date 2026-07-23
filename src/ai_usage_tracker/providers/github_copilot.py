@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-import os
 from pathlib import Path
 import sqlite3
 from urllib.parse import quote
 
 from ..model import DataSource, ProviderSnapshot, QuotaWindow, SnapshotStatus, utc_now
+from ..security import absolute_environment_path
 
 
 NANO_AI_CREDITS_PER_CREDIT = 1_000_000_000
@@ -17,8 +17,7 @@ class GitHubCopilotProbeError(RuntimeError):
 
 
 def default_copilot_cli_database() -> Path:
-    configured = os.environ.get("COPILOT_HOME")
-    base = Path(configured).expanduser() if configured else Path.home() / ".copilot"
+    base = absolute_environment_path("COPILOT_HOME") or Path.home() / ".copilot"
     return base / "session-store.db"
 
 
@@ -74,7 +73,7 @@ def read_copilot_cli_usage(database: Path | None = None) -> ProviderSnapshot:
             provider_id="github_copilot",
             display_name="GitHub Copilot",
             status=SnapshotStatus.NO_DATA,
-            source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+            source=DataSource.PRIVATE_LOCAL_STATE,
             collected_at=utc_now(),
             message="Copilot CLI has not recorded local AI-credit usage yet.",
         )
@@ -99,7 +98,7 @@ def read_copilot_cli_usage(database: Path | None = None) -> ProviderSnapshot:
             provider_id="github_copilot",
             display_name="GitHub Copilot",
             status=SnapshotStatus.NO_DATA,
-            source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+            source=DataSource.PRIVATE_LOCAL_STATE,
             collected_at=collected_at,
             message="Copilot CLI has not recorded local AI-credit usage yet.",
         )
@@ -108,7 +107,7 @@ def read_copilot_cli_usage(database: Path | None = None) -> ProviderSnapshot:
         provider_id="github_copilot",
         display_name="GitHub Copilot",
         status=SnapshotStatus.AVAILABLE,
-        source=DataSource.OFFICIAL_LOCAL_PAYLOAD,
+        source=DataSource.PRIVATE_LOCAL_STATE,
         collected_at=collected_at,
         windows=(
             QuotaWindow(
