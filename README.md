@@ -3,12 +3,12 @@
 [![CI](https://github.com/mohitkale/ai-tools-usage-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/mohitkale/ai-tools-usage-tracker/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**One privacy-first desktop widget for your AI coding usage, quotas, and reset
+**One local-first desktop widget for your AI coding usage, quotas, and reset
 times.**
 
 Track Cursor, Codex, Claude Code, GitHub Copilot CLI, Devin, and Antigravity
-across macOS, Windows, and Linux—with no telemetry and no copied or stored
-provider credentials.
+across macOS, Windows, and Linux. No telemetry. Existing credentials are never
+copied into or stored by the tracker.
 
 <p align="center">
   <img
@@ -21,6 +21,11 @@ provider credentials.
 <p align="center">
   <em>The real application rendered in its offline synthetic demo mode. No provider was accessed.</em>
 </p>
+
+If this saves you from checking six different usage screens,
+[star the repository](https://github.com/mohitkale/ai-tools-usage-tracker)
+and [request the provider](https://github.com/mohitkale/ai-tools-usage-tracker/issues/new?template=provider_request.yml)
+you want supported next.
 
 [Quick start](#quick-start) ·
 [Supported providers](#supported-providers) ·
@@ -41,6 +46,13 @@ to accelerate.
 AI Tools Usage Tracker brings the available signals into one compact,
 always-on-top view without sending your activity to another analytics service.
 
+## Who is this for?
+
+- Developers using several AI coding assistants.
+- Teams comparing quotas across subscriptions.
+- Heavy AI-tool users who regularly hit rolling limits.
+- Privacy-conscious users who do not want another hosted analytics dashboard.
+
 ## What it gives you
 
 - One dashboard for multiple AI coding tools.
@@ -53,11 +65,11 @@ always-on-top view without sending your activity to another analytics service.
 
 ## Supported providers
 
-| Provider | What the tracker can show | Data source |
+| Provider | What the tracker can show | Availability |
 | --- | --- | --- |
 | Cursor | Spend, Total/Auto/API usage, reset time | Live, experimental |
 | Codex | Rolling quota usage and reset times | Live |
-| Claude Code | Account limits or session context | Live when supplied |
+| Claude Code | Account limits or session context | Live via Claude Code status line |
 | GitHub Copilot CLI | AI credits consumed on this device | Local |
 | Devin | Daily, weekly, and included usage | Cached |
 | Antigravity | Remaining AI credits | Cached |
@@ -131,10 +143,34 @@ python3 scripts/usage_widget.py --demo
 Demo mode renders synthetic in-memory data. It cannot read provider files,
 start provider processes, use the network, or save settings.
 
+### Explicit permissions
+
+Every provider is disabled by default. The Settings screen explains the exact
+files, processes, or network access requested before a provider is enabled.
+
+<p align="center">
+  <img
+    src="docs/assets/settings.png"
+    alt="Provider settings explaining the access requested by each integration"
+    width="700"
+  />
+</p>
+
 ## Detailed and compact modes
 
 Use the minus button to switch from detailed cards to a 340-pixel-wide summary;
 use plus to restore the detailed view.
+
+<p align="center">
+  <img
+    src="docs/assets/dashboard-compact.png"
+    alt="Compact AI Tools Usage Tracker window showing remaining Cursor, Claude Code, and Codex allowance"
+    width="676"
+  />
+</p>
+
+The walkthrough below moves from the detailed dashboard to compact mode and
+then to the explicit provider-permission screen.
 
 <p align="center">
   <img
