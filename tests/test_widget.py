@@ -38,6 +38,24 @@ class WidgetFormattingTests(unittest.TestCase):
 
         self.assertEqual(UsageWidget._compact_summary(display), "24% left")
 
+    def test_compact_window_is_materially_narrower(self) -> None:
+        widget = UsageWidget.__new__(UsageWidget)
+        widget.compact_mode = False
+        self.assertEqual(
+            widget._current_window_width(),
+            UsageWidget.DETAIL_WINDOW_WIDTH,
+        )
+
+        widget.compact_mode = True
+        self.assertEqual(
+            widget._current_window_width(),
+            UsageWidget.COMPACT_WINDOW_WIDTH,
+        )
+        self.assertLess(
+            UsageWidget.COMPACT_WINDOW_WIDTH,
+            UsageWidget.DETAIL_WINDOW_WIDTH - 100,
+        )
+
     def test_retry_bypasses_global_cooldown_and_shows_immediate_feedback(self) -> None:
         scheduled = []
         updates = []

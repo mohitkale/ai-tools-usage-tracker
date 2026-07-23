@@ -368,7 +368,8 @@ class UsageWidget:
     AMBER = "#F3BC5B"
     RED = "#F17B82"
     TRACK = "#293344"
-    WINDOW_WIDTH = 472
+    DETAIL_WINDOW_WIDTH = 472
+    COMPACT_WINDOW_WIDTH = 340
     MIN_WINDOW_HEIGHT = 170
     SCREEN_MARGIN = 80
     MANUAL_REFRESH_COOLDOWN_SECONDS = 15.0
@@ -430,10 +431,11 @@ class UsageWidget:
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
-        self.root.geometry(f"{self.WINDOW_WIDTH}x{self.MIN_WINDOW_HEIGHT}")
-        self.root.minsize(self.WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
+        width = self._current_window_width()
+        self.root.geometry(f"{width}x{self.MIN_WINDOW_HEIGHT}")
+        self.root.minsize(width, self.MIN_WINDOW_HEIGHT)
         self.root.maxsize(
-            self.WINDOW_WIDTH,
+            width,
             max(
                 self.MIN_WINDOW_HEIGHT,
                 self.root.winfo_screenheight() - self.SCREEN_MARGIN,
@@ -455,6 +457,13 @@ class UsageWidget:
     def _font(self, size: int, weight: str = "normal") -> tuple[str, int, str]:
         return (self.font_family, size, weight)
 
+    def _current_window_width(self) -> int:
+        return (
+            self.COMPACT_WINDOW_WIDTH
+            if self.compact_mode
+            else self.DETAIL_WINDOW_WIDTH
+        )
+
     @staticmethod
     def _updated_time_text() -> str:
         local = datetime.now().astimezone()
@@ -465,13 +474,14 @@ class UsageWidget:
         header.pack(fill="x", padx=16, pady=(13, 10))
         title_group = self.tk.Frame(header, bg=self.BG)
         title_group.pack(side="left")
-        self.tk.Label(
+        self.title_label = self.tk.Label(
             title_group,
             text="Mohit's AI Usage Tracker",
             bg=self.BG,
             fg=self.TEXT,
             font=self._font(14, "bold"),
-        ).pack(anchor="w")
+        )
+        self.title_label.pack(anchor="w")
         controls = self.tk.Frame(header, bg=self.BG)
         controls.pack(side="right")
         self._button(
@@ -496,15 +506,14 @@ class UsageWidget:
             icon=True,
         )
         self.compact_button.pack(side="right", padx=(0, 5))
-        self.tk.Label(
+        self.updated_label = self.tk.Label(
             controls,
             textvariable=self.updated_text,
             bg=self.BG,
             fg=self.MUTED,
             font=self._font(7),
-        ).pack(
-            side="right", padx=(0, 9)
         )
+        self.updated_label.pack(side="right", padx=(0, 9))
 
         self.tk.Frame(self.root, height=1, bg=self.CARD_BORDER).pack(fill="x")
 
@@ -766,22 +775,45 @@ class UsageWidget:
         )
         if requested > available and not self.compact_mode:
             self.compact_mode = True
-            self.compact_button.itemconfigure("button-text", text="+")
+            self._apply_display_mode()
             self._render_cards()
             return
         height = min(requested, available)
+        width = self._current_window_width()
         if (
-            self.root.winfo_width() != self.WINDOW_WIDTH
+            self.root.winfo_width() != width
             or self.root.winfo_height() != height
         ):
-            self.root.geometry(f"{self.WINDOW_WIDTH}x{height}")
+            self.root.geometry(f"{width}x{height}")
 
     def toggle_compact_mode(self) -> None:
         self.compact_mode = not self.compact_mode
+        self._apply_display_mode()
+        self._render_cards()
+
+    def _apply_display_mode(self) -> None:
         self.compact_button.itemconfigure(
             "button-text", text="+" if self.compact_mode else "−"
         )
-        self._render_cards()
+        width = self._current_window_width()
+        available_height = max(
+            self.MIN_WINDOW_HEIGHT,
+            self.root.winfo_screenheight() - self.SCREEN_MARGIN,
+        )
+        self.root.minsize(width, self.MIN_WINDOW_HEIGHT)
+        self.root.maxsize(width, available_height)
+        if self.compact_mode:
+            self.title_label.configure(
+                text="AI Usage",
+                font=self._font(12, "bold"),
+            )
+            self.updated_label.pack_forget()
+        else:
+            self.title_label.configure(
+                text="Mohit's AI Usage Tracker",
+                font=self._font(14, "bold"),
+            )
+            self.updated_label.pack(side="right", padx=(0, 9))
 
     def _request_render(self) -> None:
         if self.closed or self.render_job is not None:
