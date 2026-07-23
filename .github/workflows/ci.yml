@@ -63,13 +63,6 @@ jobs:
           & ".\dist\AI Usage Tracker\AI Usage Tracker.exe" `
             --smoke-test `
             --data-dir "$env:RUNNER_TEMP\ai-usage-tracker-smoke"
-      - name: Upload Windows bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ai-usage-tracker-windows
-          path: dist/AI Usage Tracker
-          if-no-files-found: error
-
   package-ubuntu:
     name: Package Ubuntu
     needs: test
@@ -96,9 +89,3 @@ jobs:
             "dist/AI Usage Tracker/AI Usage Tracker" \
             --smoke-test \
             --data-dir "$RUNNER_TEMP/ai-usage-tracker-smoke"
-      - name: Upload Ubuntu bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ai-usage-tracker-ubuntu
-          path: dist/AI Usage Tracker
-          if-no-files-found: error

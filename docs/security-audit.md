@@ -4,10 +4,10 @@ Audit date: 2026-07-23
 
 ## Executive decision
 
-**Source publication: conditional go.** No critical or high-severity code
-finding remains open after the remediations in this review. Publication is
-blocked only by repository-governance choices that code cannot decide: an
-open-source license and a destination GitHub repository.
+**Source publication: go.** No critical or high-severity code finding remains
+open after the remediations in this review. The source is licensed under
+Apache-2.0, third-party licenses have been inventoried, and the destination is
+the public `mohitkale/ai-tools-usage-tracker` repository.
 
 **Public binary release: no-go.** Windows and Ubuntu package jobs must first
 pass on GitHub-hosted runners. Release artifacts must then be signed, checksummed,
@@ -50,7 +50,9 @@ The review covered:
   unbounded text fail closed.
 - Unexpected errors are replaced with static UI text; provider payloads, paths,
   and raw exceptions are not rendered.
-- The runtime uses only the Python standard library. PyInstaller is build-only.
+- The runtime uses only the Python standard library. PyInstaller is build-only,
+  and its documented bundling exception permits generated applications under
+  Apache-2.0. The reviewed inventory is in `THIRD_PARTY_NOTICES.md`.
 - GitHub Actions have read-only repository permission, do not persist checkout
   credentials, pin third-party actions to immutable commits, and apply timeouts.
 
@@ -80,7 +82,7 @@ The review covered:
 | Windows/Ubuntu packages have not yet executed in repository CI | Medium | Publishing source may proceed; claiming target validation or releasing binaries may not |
 | Build dependency is version-pinned but not hash-locked and no SBOM is generated | Medium | Block public binary releases until release workflow is added |
 | Binaries are not signed/notarized | High for binary distribution | Do not publish binaries until platform signing is configured |
-| No open-source license has been selected | Governance blocker | Repository owner must choose the license before public publication |
+| Platform bundles require complete notices for their exact collected native components | Medium | Do not publish binaries until notices and SBOM are generated and verified per platform |
 
 ## Reproduction
 

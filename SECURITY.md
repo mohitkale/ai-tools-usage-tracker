@@ -54,5 +54,7 @@ action. Enabling one provider does not grant permission to another.
 ## Reporting a vulnerability
 
 Do not include a real token, credential file, database, prompt, or session in a
-report. Reproduce with a synthetic canary and describe the affected adapter and
-data flow.
+report. Use GitHub's private vulnerability-reporting feature when it is
+available for this repository. Otherwise, open a minimal issue requesting a
+private contact channel without disclosing the vulnerability. Reproduce with a
+synthetic canary and describe the affected adapter and data flow.

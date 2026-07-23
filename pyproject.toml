@@ -8,6 +8,14 @@ version = "0.1.0"
 description = "Local-first AI tool usage collector"
 requires-python = ">=3.11"
 dependencies = []
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Mohit Kale" }]
+
+[project.urls]
+Homepage = "https://github.com/mohitkale/ai-tools-usage-tracker"
+Repository = "https://github.com/mohitkale/ai-tools-usage-tracker"
+Issues = "https://github.com/mohitkale/ai-tools-usage-tracker/issues"
 
 [project.scripts]
 ai-usage-probe = "ai_usage_tracker.cli:main"

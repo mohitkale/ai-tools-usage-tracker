@@ -1,8 +1,16 @@
 # AI Tools Usage Tracker
 
+[![CI](https://github.com/mohitkale/ai-tools-usage-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/mohitkale/ai-tools-usage-tracker/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 A local-first, cross-platform usage aggregator for AI developer tools. It now
 includes a compact always-on-top Python widget backed by the security-focused
 collector.
+
+> **Project status:** source preview. Provider interfaces marked private or
+> experimental can change without notice. Public binary releases are blocked
+> until the release gates in [the security audit](docs/security-audit.md) are
+> complete.
 
 ## Current scope
 
@@ -83,9 +91,9 @@ offer a reviewed non-interactive interface for retrieving an individual plan's
 remaining allowance. The CLI itself supports Windows, macOS, and Linux; its
 documented user configuration root is `~/.copilot` or `COPILOT_HOME`.
 
-The header's minus button switches to a compact view with one balance summary
-per provider; the plus button restores the detailed cards. Native window
-minimize remains available, including Command-M on macOS.
+The header's minus button switches to a 340-pixel-wide compact view with one
+balance summary per provider; the plus button restores the detailed cards.
+Native window minimize remains available, including Command-M on macOS.
 
 Its exact local data flow and retained settings are documented in
 [docs/widget-security.md](docs/widget-security.md).
@@ -121,8 +129,9 @@ output is an inspectable one-folder bundle under `dist/`; pass `--onefile` for a
 single executable. PyInstaller does not cross-compile, so Windows, Ubuntu, and
 macOS artifacts must each be produced on that target platform. Signing and
 notarization remain a release step. CI runs the full suite on all three systems
-and packages/smoke-tests Windows and Ubuntu bundles. A green Windows CI job is
-required before calling a commit Windows-validated.
+and packages/smoke-tests Windows and Ubuntu bundles. These validation bundles
+are not uploaded or published. A green Windows CI job is required before
+calling a commit Windows-validated.
 
 ## Security verification
 
@@ -140,6 +149,20 @@ sensitive filenames and repository symlinks, validates provider permissions,
 and verifies that the application has no third-party runtime dependency.
 The latest CISO-style review and remaining release gates are recorded in
 [docs/security-audit.md](docs/security-audit.md).
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. Provider
+integrations must preserve the default-deny permission model and pass the
+security audit.
+
+## License
+
+The project source is licensed under the
+[Apache License 2.0](LICENSE). The dependency and redistribution review is in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Provider names identify
+compatible services; their trademarks and logos are not licensed by this
+project.
 
 ## Collector CLI
 
