@@ -9,7 +9,7 @@ import queue
 import sys
 import threading
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 
 from .model import ProviderSnapshot
 from .providers.antigravity import read_antigravity_usage
@@ -368,9 +368,9 @@ class UsageWidget:
     AMBER = "#F3BC5B"
     RED = "#F17B82"
     TRACK = "#293344"
-    SCROLL_TRACK = "#0F151E"
-    SCROLL_THUMB = "#3A4657"
-    SCROLL_BINDTAG = "MohitsAIUsageTrackerScroll"
+    WINDOW_WIDTH = 472
+    MIN_WINDOW_HEIGHT = 170
+    SCREEN_MARGIN = 80
     MANUAL_REFRESH_COOLDOWN_SECONDS = 15.0
     RETRY_FEEDBACK_DELAY_MS = 250
 
@@ -406,8 +406,6 @@ class UsageWidget:
         self.refresh_job: str | None = None
         self.render_job: str | None = None
         self.last_refresh_started = 0.0
-        self.scroll_first = 0.0
-        self.scroll_last = 1.0
         self.compact_mode = False
         self.displays = {
             provider_id: (
@@ -418,6 +416,7 @@ class UsageWidget:
             for provider_id in PROVIDER_ORDER
         }
         self.updated_text = tk.StringVar(value="Not updated")
+        self.provider_count_text = tk.StringVar(value="0 providers")
 
         self._configure_window()
         self._build_layout()
@@ -431,8 +430,15 @@ class UsageWidget:
         self.root.configure(bg=self.BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", self.settings.always_on_top)
-        self.root.geometry("472x620")
-        self.root.minsize(472, 300)
+        self.root.geometry(f"{self.WINDOW_WIDTH}x{self.MIN_WINDOW_HEIGHT}")
+        self.root.minsize(self.WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
+        self.root.maxsize(
+            self.WINDOW_WIDTH,
+            max(
+                self.MIN_WINDOW_HEIGHT,
+                self.root.winfo_screenheight() - self.SCREEN_MARGIN,
+            ),
+        )
         if sys.platform == "darwin":
             try:
                 self.root.tk.call(
@@ -502,65 +508,8 @@ class UsageWidget:
 
         self.tk.Frame(self.root, height=1, bg=self.CARD_BORDER).pack(fill="x")
 
-        viewport = self.tk.Frame(self.root, bg=self.BG)
-        viewport.pack(fill="both", expand=True, padx=(12, 8), pady=(7, 0))
-        self.cards_canvas = self.tk.Canvas(
-            viewport,
-            bg=self.BG,
-            highlightthickness=0,
-            borderwidth=0,
-            yscrollincrement=24,
-        )
-        self.cards_scrollbar = self.tk.Canvas(
-            viewport,
-            width=10,
-            bg=self.BG,
-            borderwidth=0,
-            highlightthickness=0,
-        )
-        self.cards_scrollbar.pack(side="right", fill="y", padx=(6, 0))
-        self.cards_canvas.configure(yscrollcommand=self._update_scrollbar)
-        self.cards_scrollbar.bind("<Button-1>", self._scrollbar_pointer)
-        self.cards_scrollbar.bind("<B1-Motion>", self._scrollbar_pointer)
-        self.cards_scrollbar.bind(
-            "<Configure>", lambda _event: self._draw_scrollbar()
-        )
-        self.cards_canvas.pack(side="left", fill="both", expand=True)
-        self.cards = self.tk.Frame(self.cards_canvas, bg=self.BG)
-        self.cards_window = self.cards_canvas.create_window(
-            (0, 0), window=self.cards, anchor="nw"
-        )
-        self.cards.bind(
-            "<Configure>",
-            lambda _event: self.cards_canvas.configure(
-                scrollregion=self.cards_canvas.bbox("all")
-            ),
-        )
-        self.cards_canvas.bind(
-            "<Configure>",
-            lambda event: self.cards_canvas.itemconfigure(
-                self.cards_window, width=event.width
-            ),
-        )
-        self.root.bind_class(
-            self.SCROLL_BINDTAG, "<MouseWheel>", self._on_mousewheel
-        )
-        self.root.bind_class(
-            self.SCROLL_BINDTAG, "<Button-4>", self._on_mousewheel
-        )
-        self.root.bind_class(
-            self.SCROLL_BINDTAG, "<Button-5>", self._on_mousewheel
-        )
-        self._bind_mousewheel_tree(self.cards_canvas)
-        self._bind_mousewheel_tree(self.cards_scrollbar)
-        self.root.bind(
-            "<Prior>", lambda _event: self.cards_canvas.yview_scroll(-1, "pages")
-        )
-        self.root.bind(
-            "<Next>", lambda _event: self.cards_canvas.yview_scroll(1, "pages")
-        )
-        self.root.bind("<Home>", lambda _event: self.cards_canvas.yview_moveto(0))
-        self.root.bind("<End>", lambda _event: self.cards_canvas.yview_moveto(1))
+        self.cards = self.tk.Frame(self.root, bg=self.BG)
+        self.cards.pack(fill="x", padx=12, pady=(7, 0))
 
         footer = self.tk.Frame(self.root, bg=self.BG)
         footer.pack(fill="x", padx=16, pady=(6, 8))
@@ -582,7 +531,7 @@ class UsageWidget:
         ).pack(side="left", padx=(5, 0))
         self.tk.Label(
             footer,
-            text="6 providers",
+            textvariable=self.provider_count_text,
             bg=self.BG,
             fg=self.FAINT,
             font=self._font(7),
@@ -662,76 +611,6 @@ class UsageWidget:
         )
         canvas.tag_lower(tag)
 
-    def _update_scrollbar(self, first: Any, last: Any) -> None:
-        try:
-            self.scroll_first = min(max(float(first), 0), 1)
-            self.scroll_last = min(max(float(last), self.scroll_first), 1)
-        except (TypeError, ValueError):
-            self.scroll_first, self.scroll_last = 0.0, 1.0
-        self._draw_scrollbar()
-
-    def _scrollbar_geometry(self) -> tuple[float, float, float]:
-        height = max(float(self.cards_scrollbar.winfo_height()), 1)
-        usable = max(height - 4, 1)
-        fraction = max(self.scroll_last - self.scroll_first, 0)
-        thumb_height = min(usable, max(30.0, usable * fraction))
-        travel = max(usable - thumb_height, 0)
-        denominator = max(1.0 - fraction, 0.0001)
-        top = 2 + travel * min(self.scroll_first / denominator, 1)
-        return height, top, thumb_height
-
-    def _draw_scrollbar(self) -> None:
-        if not hasattr(self, "cards_scrollbar"):
-            return
-        self.cards_scrollbar.delete("scrollbar")
-        height, top, thumb_height = self._scrollbar_geometry()
-        if height < 8:
-            return
-        self._rounded_shape(
-            self.cards_scrollbar,
-            2,
-            1,
-            8,
-            height - 1,
-            3,
-            self.SCROLL_TRACK,
-            tag="scrollbar",
-        )
-        if self.scroll_last - self.scroll_first < 0.999:
-            self._rounded_shape(
-                self.cards_scrollbar,
-                2,
-                top,
-                8,
-                top + thumb_height,
-                3,
-                self.SCROLL_THUMB,
-                tag="scrollbar",
-            )
-
-    def _scrollbar_pointer(self, event: Any) -> str:
-        height, _top, thumb_height = self._scrollbar_geometry()
-        travel = max(height - 4 - thumb_height, 1)
-        target = (event.y - 2 - thumb_height / 2) / travel
-        self.cards_canvas.yview_moveto(min(max(target, 0), 1))
-        return "break"
-
-    def _on_mousewheel(self, event: Any) -> str:
-        if getattr(event, "num", None) == 4:
-            units = -1
-        elif getattr(event, "num", None) == 5:
-            units = 1
-        else:
-            delta = getattr(event, "delta", 0)
-            if delta == 0:
-                return "break"
-            if sys.platform == "win32":
-                units = -max(-3, min(3, int(delta / 120) or (1 if delta > 0 else -1)))
-            else:
-                units = -1 if delta > 0 else 1
-        self.cards_canvas.yview_scroll(units, "units")
-        return "break"
-
     @staticmethod
     def _progress_fill_width(width: float, used_percent: float) -> float:
         safe_width = max(float(width), 0.0)
@@ -764,13 +643,6 @@ class UsageWidget:
                 outline="",
                 tags="progress",
             )
-
-    def _bind_mousewheel_tree(self, widget: Any) -> None:
-        tags = tuple(widget.bindtags())
-        if self.SCROLL_BINDTAG not in tags:
-            widget.bindtags((self.SCROLL_BINDTAG, *tags))
-        for child in widget.winfo_children():
-            self._bind_mousewheel_tree(child)
 
     def _button(
         self,
@@ -831,30 +703,84 @@ class UsageWidget:
         return button
 
     def _render_cards(self) -> None:
-        previous_top = self.cards_canvas.yview()[0]
         for child in self.cards.winfo_children():
             child.destroy()
-        for provider_id in PROVIDER_ORDER:
+        visible_providers = self._visible_provider_ids(
+            self.settings.enabled_providers
+        )
+        count = len(visible_providers)
+        self.provider_count_text.set(
+            f"{count} provider" if count == 1 else f"{count} providers"
+        )
+        if not visible_providers:
+            self._render_empty_state()
+        for provider_id in visible_providers:
             display = self.displays[provider_id]
             if self.compact_mode:
                 self._render_compact_card(display)
             else:
                 self._render_card(display)
+        self.root.after_idle(self._fit_window_to_content)
 
-        def finish_layout() -> None:
-            self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
-            self.cards_canvas.yview_moveto(previous_top)
-            self._bind_mousewheel_tree(self.cards_canvas)
+    @staticmethod
+    def _visible_provider_ids(
+        enabled_providers: Collection[str],
+    ) -> tuple[str, ...]:
+        return tuple(
+            provider_id
+            for provider_id in PROVIDER_ORDER
+            if provider_id in enabled_providers
+        )
 
-        self.root.after_idle(finish_layout)
+    def _render_empty_state(self) -> None:
+        empty = self.tk.Frame(
+            self.cards,
+            bg=self.CARD,
+            highlightbackground=self.CARD_BORDER,
+            highlightthickness=1,
+        )
+        empty.pack(fill="x", pady=2)
+        self.tk.Label(
+            empty,
+            text="No providers selected",
+            bg=self.CARD,
+            fg=self.TEXT,
+            font=self._font(10, "bold"),
+        ).pack(anchor="w", padx=14, pady=(11, 2))
+        self.tk.Label(
+            empty,
+            text="Open Settings to choose which providers appear here.",
+            bg=self.CARD,
+            fg=self.MUTED,
+            font=self._font(8),
+        ).pack(anchor="w", padx=14, pady=(0, 11))
+
+    def _fit_window_to_content(self) -> None:
+        if self.closed:
+            return
+        self.root.update_idletasks()
+        requested = max(self.root.winfo_reqheight(), self.MIN_WINDOW_HEIGHT)
+        available = max(
+            self.MIN_WINDOW_HEIGHT,
+            self.root.winfo_screenheight() - self.SCREEN_MARGIN,
+        )
+        if requested > available and not self.compact_mode:
+            self.compact_mode = True
+            self.compact_button.itemconfigure("button-text", text="+")
+            self._render_cards()
+            return
+        height = min(requested, available)
+        if (
+            self.root.winfo_width() != self.WINDOW_WIDTH
+            or self.root.winfo_height() != height
+        ):
+            self.root.geometry(f"{self.WINDOW_WIDTH}x{height}")
 
     def toggle_compact_mode(self) -> None:
         self.compact_mode = not self.compact_mode
         self.compact_button.itemconfigure(
             "button-text", text="+" if self.compact_mode else "−"
         )
-        self.root.geometry("472x380" if self.compact_mode else "472x620")
-        self.cards_canvas.yview_moveto(0)
         self._render_cards()
 
     def _request_render(self) -> None:

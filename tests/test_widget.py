@@ -61,28 +61,12 @@ class WidgetFormattingTests(unittest.TestCase):
         self.assertEqual(scheduled[0][0], UsageWidget.RETRY_FEEDBACK_DELAY_MS)
         render.assert_called_once_with()
 
-    def test_scroll_bindtag_is_prioritized_for_every_card_widget(self) -> None:
-        class FakeWidget:
-            def __init__(self, children=()) -> None:
-                self.tags = ("widget", "class", "all")
-                self.children = children
+    def test_only_enabled_providers_are_visible_in_provider_order(self) -> None:
+        visible = UsageWidget._visible_provider_ids(
+            frozenset({"github_copilot", "cursor", "devin"})
+        )
 
-            def bindtags(self, value=None):
-                if value is not None:
-                    self.tags = value
-                return self.tags
-
-            def winfo_children(self):
-                return self.children
-
-        child = FakeWidget()
-        parent = FakeWidget((child,))
-        widget = UsageWidget.__new__(UsageWidget)
-
-        widget._bind_mousewheel_tree(parent)
-
-        self.assertEqual(parent.tags[0], UsageWidget.SCROLL_BINDTAG)
-        self.assertEqual(child.tags[0], UsageWidget.SCROLL_BINDTAG)
+        self.assertEqual(visible, ("cursor", "devin", "github_copilot"))
 
     def test_manual_refresh_cooldown_avoids_duplicate_collection(self) -> None:
         widget = UsageWidget.__new__(UsageWidget)
@@ -95,18 +79,6 @@ class WidgetFormattingTests(unittest.TestCase):
         widget.refresh_all()
 
         self.assertEqual(widget.in_progress, set())
-
-    def test_mouse_wheel_scrolls_when_pointer_is_over_child_content(self) -> None:
-        calls = []
-        widget = UsageWidget.__new__(UsageWidget)
-        widget.cards_canvas = SimpleNamespace(
-            yview_scroll=lambda units, mode: calls.append((units, mode))
-        )
-
-        result = widget._on_mousewheel(SimpleNamespace(delta=-1, num=None))
-
-        self.assertEqual(result, "break")
-        self.assertEqual(calls, [(1, "units")])
 
     def test_formats_cursor_money_percentage_and_local_reset(self) -> None:
         snapshot = ProviderSnapshot(
